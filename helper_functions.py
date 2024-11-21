@@ -31,6 +31,9 @@ def zarr_to_xarray(file):
     ds = ds.drop_vars(DROP)
     ds = ds.isel(ensemble=0)
 
+    # For now we can just use vectors from 0:1069 since we don't have to
+    # regrid yet. In the future this multiIndex should contain the 
+    # actual lambert coordinates!!
     mindex = pd.MultiIndex.from_product(
         [
             range(0,ds.attrs["field_shape"][0]),
