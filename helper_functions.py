@@ -45,4 +45,4 @@ def zarr_to_xarray(file):
         mindex, 'cell')
     
     ds = ds.assign_coords(mindex_coords).unstack()
-    return(ds)
+    return(ds.data)
