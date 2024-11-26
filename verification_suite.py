@@ -68,7 +68,9 @@ class VerificationSuite():
             _type=output.get('type','netcdf')
             path=output.get('path','scores.nc')
             print(f"Saving scores to {path}")
-            save_data(self.scores,path,_type)
+            ds=self.scores
+            ds.attrs={'verification_suite_config' : str(self.config)}
+            save_data(ds,path,_type)
 
 
 if __name__ == "__main__":
