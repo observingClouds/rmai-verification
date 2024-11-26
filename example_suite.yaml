@@ -1,0 +1,26 @@
+models:
+   cerra : 
+    type: zarr
+    path: /scratch/project_465001235/datasets
+    filenames:
+      2007-11-05T00:00 : lam-rr-an-oper-0001-mars-5p5km-1984-2020-3h-rmi-v1.zarr
+    kwargs:
+      thinning: 4
+
+   anemoi_v0 :
+    type: inference
+    path: /scratch/project_465001235/vandenbl/anemoi/experiments/inference/lam_real_test
+    filenames:
+      2007-11-05T00:00 : fc_init_20071105_00.nc
+    kwargs:
+      thinning: 4
+    
+reference_model: cerra
+
+scores:
+  RMSE: ['fc_time']
+  BIAS: ['fc_time']
+
+output:
+  path: scores.nc
+  type: netcdf

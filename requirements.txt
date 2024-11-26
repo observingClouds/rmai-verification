@@ -2,3 +2,4 @@ dask
 xarray
 pandas
 anemoi.datasets
+xskillscore
