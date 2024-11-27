@@ -4,6 +4,7 @@ import xarray as xr
 import pandas as pd
 import numpy as np
 
+
 LOAD_REGISTRY=dict(
     zarr = lambda fname, fc_time, kwargs : zarr_to_xarray(fname, fc_time=fc_time, lead_time=True, **kwargs),
     inference = lambda fname, fc_time, kwargs : inference_to_xarray(fname, fc_time, lead_time=True, **kwargs)
@@ -33,9 +34,14 @@ DROP = [
     "dates"
 ]
 
+def get_loader(type):
+    assert type in TEST_REGISTRY, f"The datatype {type} is not (yet) supported."
+    return TEST_REGISTRY[type]
+
 def load_data(fname, fc_time, _type, kwargs):
     assert _type in LOAD_REGISTRY, f"The datatype {_type} is not (yet) supported."
     return LOAD_REGISTRY[_type](fname, fc_time, kwargs)
+
 
 def save_data(ds,fname, _type):
     assert _type in SAVE_REGISTRY, f"The datatype {_type} is not (yet) supported."
@@ -76,6 +82,7 @@ def valid_to_lead_time(ds):
 
 def anemoi_datasets(
         filename,
+        valid_times=None,
         coords=COORDS,
         drop=DROP,
         thinning=1):
@@ -88,7 +95,9 @@ def anemoi_datasets(
         ds = ds.assign_coords({key : ds[value]})
     
     # Add the variables as a coordinate
-    ds = ds.assign_coords(variable=ds.attrs["variables"])
+    ds = ds.assign_coords(
+        variable=ds.attrs["variables"]
+    )
     
     # Drop unused variables
     ds = ds.drop_vars(drop)
@@ -115,6 +124,11 @@ def anemoi_datasets(
     # Make valid_time the main time dimension
     #TODO: Fix non-nanosecond precision warning
     ds = ds.swap_dims({"time":"valid_time"})
+
+    # Select only needed valid_times
+    if valid_times is not None:
+        ds = ds.sel(valid_time=valid_times)
+
     return ds
   
 
@@ -129,6 +143,9 @@ def anemoi_inference(
     
     # Open the file
     ds = xr.open_dataset(filename)
+    
+    # set latitude and longitude as coordinates
+    ds = ds.assign_coords(latitude=ds.latitude).assign_coords(longitude=ds.longitude)
     
     # Add additional attributes
     if dataset_attrs:
@@ -148,7 +165,7 @@ def anemoi_inference(
         ny = ngridpoints/nx
 
     # Check if nx and ny are integers
-    assert nx.is_integer() and ny.is_integer(), "'nx' and 'ny' must be integers."
+    assert int(nx) == nx and int(ny) == ny, "'nx' and 'ny' must be integers."
 
     # Convert list to grid
     ds=list_to_grid(
@@ -181,7 +198,10 @@ def anemoi_inference(
     
 
     
-
+TEST_REGISTRY = {
+    "anemoi-inference" : anemoi_inference,
+    "anemoi-datasets" : anemoi_datasets
+}
 
 
 
