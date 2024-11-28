@@ -1,65 +1,13 @@
-import anemoi.datasets
-import dask
 import xarray as xr
 import pandas as pd
 import numpy as np
 
-LOAD_REGISTRY=dict(
-    zarr = lambda fname, fc_time, kwargs : zarr_to_xarray(fname, fc_time=fc_time, lead_time=True, **kwargs),
-    inference = lambda fname, fc_time, kwargs : inference_to_xarray(fname, fc_time, lead_time=True, **kwargs)
-    )
-
-SAVE_REGISTRY=dict(
-    zarr = lambda ds, fname : ds.to_zarr(fname),
-    netcdf = lambda ds, fname : ds.to_netcdf(fname)
-    )
-
-def load_data(fname, fc_time, _type, kwargs):
-    assert _type in LOAD_REGISTRY, f"The datatype {_type} is not (yet) supported."
-    return LOAD_REGISTRY[_type](fname, fc_time, kwargs)
-
-def save_data(ds,fname, _type):
-    assert _type in SAVE_REGISTRY, f"The datatype {_type} is not (yet) supported."
-    SAVE_REGISTRY[_type](ds,fname)
-
-def list2grid(ds, grid_info={"y":1069,"x":1069},dim="values"):
-    assert len(grid_info) == 2, ("Only gridding to 2 dimensional grids is currently supported."
-                                "'grid_info' should specify exactly 2 dimensions.")
-    names=list(grid_info)
-    n0=grid_info[names[0]]
-    n1=grid_info[names[1]]
-    assert dim in ds.dims, f"The dimension {dim} you want to grid is not in the dataset."
-    assert len(ds.coords[dim]) == n0*n1, "Proposed grid size doesn't match."
-    # For now we can just use vectors from 0:n0, 0:n1 since we don't have to
-    # regrid yet. In the future this multiIndex should contain the 
-    # actual lambert coordinates!!
-    mindex = pd.MultiIndex.from_product(
-        [range(0,n0), range(0,n1)],
-        names=names
-    )
-    mindex_coords = xr.Coordinates.from_pandas_multiindex(
-        mindex, dim)
-    return ds.assign_coords(mindex_coords).unstack()
-
-def xr_thinning(ds,thinning):
-    assert 'x' in ds.coords and 'y' in ds.coords, "The dataset needs to have 'x' and 'y' coordinates."
-    xs=ds.coords['x'].values
-    ys=ds.coords['y'].values
-    xs=xs[::thinning]
-    ys=ys[::thinning]
-    return ds.sel(x=xs,y=ys)
-
-def valid_to_lead(ds, fc_time):
-    assert 'valid_time' in ds.dims, 'valid_time is not a dimension'
-    lts=[valid_time - fc_time for valid_time in ds.valid_time.values]
-    ds=ds.assign_coords({'valid_time': lts})
-    return ds.rename({'valid_time' : 'lead_time'})
-
 COORDS = dict(
     longitude="longitudes",
     latitude="latitudes",
-    valid_date="dates"
+    valid_time="dates"
 )
+
 DROP = [
     "count",
     "has_nans",
@@ -74,53 +22,184 @@ DROP = [
     "dates"
 ]
 
-def zarr_to_xarray(file, fc_time="",
-                   coords=COORDS,
-                   drop=DROP,
-                   thinning=1,
-                   lead_time=False):
-    ds = xr.open_zarr(file,consolidated=False)
-    for key, value in coords.items():
-        ds = ds.assign_coords({key : ds[value]})
 
-    ds = ds.assign_coords(variable=ds.attrs["variables"])
-    ds = ds.drop_vars(drop)
-    ds = ds.isel(ensemble=0)
+## UTILS ##
+def get_loader(type):
+    assert type in LOAD_REGISTRY, f"The datatype {type} is not (yet) supported."
+    return LOAD_REGISTRY[type]
 
-    grid_info=dict(y=ds.attrs["field_shape"][0],
-                   x=ds.attrs["field_shape"][1])
-    ds=list2grid(ds,grid_info=grid_info,dim="cell")
-    ds=xr_thinning(ds,thinning)
-    da=ds.data
-    ds=da.to_dataset(dim='variable')
-    ds=ds.assign_coords({'time':ds['valid_date'].values})
-    ds=ds.rename({'time':'valid_time'}).drop_vars('valid_date')
-    ds=ds.expand_dims({'fc_time': [fc_time]})
-    if lead_time:
-       ds = valid_to_lead(ds, fc_time) 
+def get_saver(type):
+    assert type in SAVE_REGISTRY, f"The datatype {type} is not (yet) supported."
+    return SAVE_REGISTRY[type]
+
+def list_to_grid(ds, nx, ny, dim="values"):
+    assert dim in ds.dims, f"The dimension {dim} you want to grid is not in the dataset."
+    assert ds.sizes[dim] == nx * ny, f"Proposed grid dimensions ({ny}, {nx}) do not match the length of {dim}: {ds.dims[dim]}"
+    
+    if "thinning" in ds.attrs:
+        thinning_factor = ds.attrs["thinning"]
+    else:
+        thinning_factor = 1
+    mindex = pd.MultiIndex.from_product(
+        [np.arange(0,ny)*thinning_factor, np.arange(0,nx)*thinning_factor],
+        names=["y","x"]
+    )
+    
+    mindex_coords = xr.Coordinates.from_pandas_multiindex(
+        mindex, dim)
+    return ds.assign_coords(mindex_coords).unstack()
+
+def valid_to_lead_time(ds):
+    assert "valid_time" in ds.coords and "reference_time" in ds.coords, "Need a valid_time and reference_time coordinate"
+    ds = ds.assign_coords(
+        lead_time=("time", ds.valid_time.data - ds.reference_time.data)
+    )
+    ds = ds.swap_dims({"time":"lead_time"})
+
+    # Make valid_time a 2 dimensional array for easier merging
+    ds = ds.assign_coords(
+        valid_time=(
+            ["reference_time","lead_time"],
+            ds.valid_time.data[np.newaxis,:]
+        )
+    )
     return ds
 
-def inference_to_xarray(file,fc_time,
-                        lx=None, ly=None, 
-                        thinning=1, lead_time = False):
-    ds = xr.open_dataset(file)
-    a = len(ds['values'])
-    if lx is None and ly is None:
-        lx = np.sqrt(a)
-        ly = np.sqrt(a)
-    elif lx is None:
-        lx = a/ly
-    elif ly is None:
-        ly = a/lx
-    assert lx == int(lx) and ly == int(ly), "'lx' and 'ly' must be integers."
-    grid_info=dict(y = int(ly),
-                   x = int(lx))
-    ds=list2grid(ds,grid_info=grid_info)
-    xs=[x*thinning for x in ds.x.values]
-    ys=[y*thinning for y in ds.y.values]
-    ds=ds.assign_coords({'x':xs,'y':ys})
-    ds=ds.rename({'time':'valid_time'})
-    ds=ds.expand_dims({'fc_time' : [fc_time]})
+
+## LOADERS ##
+def anemoi_datasets(
+        filename,
+        valid_times=None,
+        coords=COORDS,
+        drop=DROP,
+        thinning=1):
+
+    # Open the file
+    ds = xr.open_zarr(filename,consolidated=False)
+
+    # Assign the coordinates
+    for key, value in coords.items():
+        ds = ds.assign_coords({key : ds[value]})
+    
+    # Add the variables as a coordinate
+    ds = ds.assign_coords(
+        variable=ds.attrs["variables"]
+    )
+    
+    # Drop unused variables
+    ds = ds.drop_vars(drop)
+
+    # Remove the ensemble dimension
+    ds = ds.isel(ensemble=0)
+
+    # Convert list to grid
+    ds = list_to_grid(
+        ds=ds,
+        nx=ds.attrs["field_shape"][1],
+        ny=ds.attrs["field_shape"][0],
+        dim="cell"
+    )
+
+    # Thinning
+    if thinning > 1:
+        ds = ds.isel(x=slice(0,None,thinning),y=slice(0,None,thinning))
+        ds.attrs["thinnig"] = thinning
+
+    # Transform the a dataset with 1 dataarray per variable
+    ds = ds.data.to_dataset(dim="variable")
+    
+    # Make valid_time the main time dimension
+    #TODO: Fix non-nanosecond precision warning
+    ds = ds.swap_dims({"time":"valid_time"})
+
+    # Select only needed valid_times
+    if valid_times is not None:
+        ds = ds.sel(valid_time=valid_times)
+
+    return ds
+  
+def anemoi_inference(
+        filename, 
+        reference_time=None, 
+        nx=None, 
+        ny=None, 
+        dataset_attrs=None,
+        lead_time=True):
+    
+    # Open the file
+    ds = xr.open_dataset(filename)
+    
+    # set latitude and longitude as coordinates
+    ds = ds.assign_coords(latitude=ds.latitude).assign_coords(longitude=ds.longitude)
+    
+    # Add additional attributes
+    if dataset_attrs:
+        for key, value in dataset_attrs.items():
+            ds.attrs[key] = value
+    
+    # Get the total number of gridpoints
+    ngridpoints = ds.sizes["values"]
+
+    # Try to figure out the grid-dimensions
+    if not nx and not ny:
+        print("Warning: No nx and ny provided, trying to build a square grid")
+        nx = ny =  np.sqrt(ngridpoints)
+    elif not nx:
+        nx = ngridpoints/ny
+    elif not ny:
+        ny = ngridpoints/nx
+
+    # Check if nx and ny are integers
+    assert int(nx) == nx and int(ny) == ny, "'nx' and 'ny' must be integers."
+
+    # Convert list to grid
+    ds=list_to_grid(
+        ds=ds,
+        nx=nx,
+        ny=ny,
+        dim="values"
+    )
+
+    # Add a reference time
+    if not reference_time:
+        print("Warning: No reference_time provided, using first valid time")
+        reference_time = ds["time"].data[0]
+    elif not np.issubdtype(reference_time, np.datetime64):
+        reference_time = np.datetime64(reference_time)
+    
+    ds = ds.expand_dims(reference_time=[reference_time])
+    ds.reference_time.attrs["standard_name"] = "forecast_reference_time"
+
+    # Rename the time coordinate to valid_time
+    ds = ds.rename_vars({"time": "valid_time"})
+
+    # Add leadtimes and set as dimension
     if lead_time:
-        ds = valid_to_lead(ds, fc_time)
-    return ds 
+        ds = valid_to_lead_time(ds)
+        
+    return(ds)
+
+## SAVERS ##
+def save_to_netcdf(ds, filepath, **kwargs):
+    ds.to_netcdf(filepath, **kwargs)
+
+def save_to_zarr(ds, filepath, **kwargs):
+    ds.to_zarr(filepath, **kwargs)
+
+
+## REGISTRIES ##
+LOAD_REGISTRY = {
+    "anemoi-inference" : anemoi_inference,
+    "anemoi-datasets" : anemoi_datasets
+}
+
+SAVE_REGISTRY = {
+    "netcdf" : save_to_netcdf,
+    "zarr" : save_to_zarr
+}
+
+
+
+
+    
+
