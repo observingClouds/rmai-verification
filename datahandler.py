@@ -1,25 +1,13 @@
-import anemoi.datasets
-import dask
 import xarray as xr
 import pandas as pd
 import numpy as np
-
-
-LOAD_REGISTRY=dict(
-    zarr = lambda fname, fc_time, kwargs : zarr_to_xarray(fname, fc_time=fc_time, lead_time=True, **kwargs),
-    inference = lambda fname, fc_time, kwargs : inference_to_xarray(fname, fc_time, lead_time=True, **kwargs)
-    )
-
-SAVE_REGISTRY=dict(
-    zarr = lambda ds, fname : ds.to_zarr(fname),
-    netcdf = lambda ds, fname : ds.to_netcdf(fname)
-    )
 
 COORDS = dict(
     longitude="longitudes",
     latitude="latitudes",
     valid_time="dates"
 )
+
 DROP = [
     "count",
     "has_nans",
@@ -34,18 +22,15 @@ DROP = [
     "dates"
 ]
 
+
+## UTILS ##
 def get_loader(type):
-    assert type in TEST_REGISTRY, f"The datatype {type} is not (yet) supported."
-    return TEST_REGISTRY[type]
+    assert type in LOAD_REGISTRY, f"The datatype {type} is not (yet) supported."
+    return LOAD_REGISTRY[type]
 
-def load_data(fname, fc_time, _type, kwargs):
-    assert _type in LOAD_REGISTRY, f"The datatype {_type} is not (yet) supported."
-    return LOAD_REGISTRY[_type](fname, fc_time, kwargs)
-
-
-def save_data(ds,fname, _type):
-    assert _type in SAVE_REGISTRY, f"The datatype {_type} is not (yet) supported."
-    SAVE_REGISTRY[_type](ds,fname)
+def get_saver(type):
+    assert type in SAVE_REGISTRY, f"The datatype {type} is not (yet) supported."
+    return SAVE_REGISTRY[type]
 
 def list_to_grid(ds, nx, ny, dim="values"):
     assert dim in ds.dims, f"The dimension {dim} you want to grid is not in the dataset."
@@ -80,6 +65,8 @@ def valid_to_lead_time(ds):
     )
     return ds
 
+
+## LOADERS ##
 def anemoi_datasets(
         filename,
         valid_times=None,
@@ -131,8 +118,6 @@ def anemoi_datasets(
 
     return ds
   
-
-    
 def anemoi_inference(
         filename, 
         reference_time=None, 
@@ -177,8 +162,8 @@ def anemoi_inference(
 
     # Add a reference time
     if not reference_time:
-        print("Warning: No reference_time provided, calculating it from the time coordinate")
-        reference_time = ds["time"].data[0] - np.diff(ds["time"].data)[0]
+        print("Warning: No reference_time provided, using first valid time")
+        reference_time = ds["time"].data[0]
     elif not np.issubdtype(reference_time, np.datetime64):
         reference_time = np.datetime64(reference_time)
     
@@ -191,18 +176,27 @@ def anemoi_inference(
     # Add leadtimes and set as dimension
     if lead_time:
         ds = valid_to_lead_time(ds)
-
-
         
     return(ds)
-    
 
-    
-TEST_REGISTRY = {
+## SAVERS ##
+def save_to_netcdf(ds, filepath, **kwargs):
+    ds.to_netcdf(filepath, **kwargs)
+
+def save_to_zarr(ds, filepath, **kwargs):
+    ds.to_zarr(filepath, **kwargs)
+
+
+## REGISTRIES ##
+LOAD_REGISTRY = {
     "anemoi-inference" : anemoi_inference,
     "anemoi-datasets" : anemoi_datasets
 }
 
+SAVE_REGISTRY = {
+    "netcdf" : save_to_netcdf,
+    "zarr" : save_to_zarr
+}
 
 
 

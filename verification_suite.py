@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import xarray as xr
 from scores_registry import compute
-from datahandler import load_data, save_data, get_loader
+from datahandler import get_loader, get_saver
 from datetime import datetime
 
 ### yaml files ###
@@ -93,71 +93,37 @@ class VerificationSuite():
         self.forecasts = self.forecasts[list(common_vars)]
         
     
-    def compute_scores2(self):
+    def compute_scores(self):
+        _scores = []
         for score, dim in self.config['scores'].items():
             print(f"Computing {score}.")
             def map_compute(model):
                 #TODO fix chunking issue
                 ds = compute(self.observations.chunk({dim[0]:-1}), model, score, dim=dim)
                 return ds
-            ds_score = self.forecasts.groupby("model").map(map_compute)
-            print(ds_score)
+            _score = self.forecasts.groupby("model").map(map_compute)
+            _score = _score.expand_dims(dim={"score": [score]})
+            _scores.append(_score)
+        self.scores = xr.concat(_scores,dim="score")
+    
+    def save_scores(self):
+        output = self.config.get("output", None)
+        if not output:
+            pass
+        else:
+            saver = get_saver(output.get("type",'netcdf'))
+            path = output.get("path","scores.nc")
+            print(f"Saving scores to {path}")
+            self.scores.attrs["config"] = str(self.config)
+            saver(self.scores,path)
 
-
-    def load_dataset(self):
-        dss_models=[]
-        first_instance=True
-        for model, model_cfg in self.config['models'].items():
-            dss_fc_time=[]
-            pth=model_cfg['path']
-            type=model_cfg['type']
-            kwargs=model_cfg.get('kwargs',{})
-            for time, name in model_cfg['filenames'].items():
-                print(f"Prepping data for {model}, fc_time {time}.")
-                fn=f"{pth}/{name}"
-                fc_time=np.datetime64(time)
-                ds=load_data(fn,fc_time,type,kwargs)
-                if first_instance:
-                    lts = ds.lead_time.values
-                    vrs = list(ds)
-                    first_instance = False
-                dss_fc_time.append(ds)
-            ds=xr.concat(dss_fc_time,dim='fc_time')
-            lts = [lt for lt in lts if lt in ds.lead_time.values]
-            vrs = [v for v in vrs if v in list(ds)]
-            dss_models.append(ds.expand_dims({'model': [model]}))
-        dss_models = [ds[vrs].sel(lead_time=lts) for ds in dss_models]
-        self.dataset=xr.concat(dss_models, dim='model')
-        print(f"Data ready")
-
-    def compute_scores(self):
-        self.load_dataset()
-        ref_model=self.config['reference_model']
-        ds=self.dataset
-        models=ds.model.values
-        assert ref_model in models, f"The reference model {ref_model} is not among the listed models."
-        fc_models=[model for model in models if model != ref_model]
-        ds_ref=ds.sel(model=ref_model).expand_dims({'model' : fc_models})
-        ds_fc=ds.sel(model=fc_models)
-        dss_scores=[]
-        for score, dim in self.config['scores'].items():
-            print(f"Computing {score}.")
-            ds_score=compute(ds_ref, ds_fc, score, dim=dim)
-            dss_scores.append( ds_score.expand_dims({'score':[score]}) )
-        self.scores=xr.concat(dss_scores,dim='score')
-        print('All scores computed')
     
     def run(self):
+        self.load_forecasts()
+        self.load_observations()
+        self.unify_variables()
         self.compute_scores()
-        output = self.config.get('output', None)
-        if output is not None:
-            _type=output.get('type','netcdf')
-            path=output.get('path','scores.nc')
-            print(f"Saving scores to {path}")
-            ds=self.scores
-            ds.attrs={'verification_suite_config' : str(self.config)}
-            save_data(ds,path,_type)
-
+        self.save_scores()
 
 if __name__ == "__main__":
 
