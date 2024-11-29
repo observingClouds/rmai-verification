@@ -1,7 +1,7 @@
 import xarray as xr
 import pandas as pd
 import numpy as np
-from projections import build_native_domain
+from projections import map_grid
 
 COORDS = dict(
     longitude="longitudes",
@@ -74,7 +74,7 @@ def anemoi_datasets(
         coords=COORDS,
         drop=DROP,
         thinning=1,
-        native_domain=None):
+        grid_mapping=None):
     
 
 
@@ -109,9 +109,9 @@ def anemoi_datasets(
         ds = ds.isel(x=slice(0,None,thinning),y=slice(0,None,thinning))
         ds.attrs["thinnig"] = thinning
 
-    # Build the native grid
-    if native_domain:
-        ds = build_native_domain(ds, native_domain)
+    # Map grid
+    if grid_mapping:
+        ds = map_grid(ds, grid_mapping)
 
 
     # Transform the a dataset with 1 dataarray per variable
@@ -133,7 +133,7 @@ def anemoi_inference(
         nx=None, 
         ny=None, 
         dataset_attrs=None,
-        native_domain=None,
+        grid_mapping=None,
         lead_time=True):
     
     # Open the file
@@ -170,9 +170,9 @@ def anemoi_inference(
         dim="values"
     )
 
-    # Build the native domain
-    if native_domain:
-        ds = build_native_domain(ds, native_domain)
+    # Map grid
+    if grid_mapping:
+        ds = map_grid(ds, grid_mapping)
 
     # Add a reference time
     if not reference_time:

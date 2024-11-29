@@ -1,6 +1,6 @@
 import cartopy.crs as ccrs
 
-DOMAINS = {
+MAPPINGS = {
     "cerra" : {
         "projection" : "lcc",
         "projection_kws" : {
@@ -23,20 +23,19 @@ PROJECTIONS = {
     "lcc" : ccrs.LambertConformal,
 }
 
-def build_native_domain(dataset, native_domain):
-    # If native domain is a string, get the specifications from the pre-defined domains
-    if isinstance(native_domain, str):
-        assert native_domain in DOMAINS, f"Native domain {native_domain} not supported, please provide a dictionary with the specifications"
-        native_domain = DOMAINS[native_domain].copy()
+def map_grid(dataset, grid_mapping):
+    # If native domain is a string, get the specifications from the pre-defined mappings
+    if isinstance(grid_mapping, str):
+        assert grid_mapping in MAPPINGS, f"Grid mapping {grid_mapping} not supported, please provide a dictionary with the specifications"
+        grid_mapping = dict(MAPPINGS[grid_mapping])
 
     # Build the cartopy CRS    
-    assert native_domain["projection"] in PROJECTIONS, f"Projection {native_domain['projection']} not supported (yet)."
-    projection = PROJECTIONS[native_domain["projection"]]
-    kwargs = native_domain["projection_kws"]
+    assert grid_mapping["projection"] in PROJECTIONS, f"Projection {grid_mapping['projection']} not supported (yet)."
+    projection = PROJECTIONS[grid_mapping["projection"]]
+    kwargs = dict(grid_mapping["projection_kws"])
     globe = kwargs.pop("globe", None)
     if globe:
         globe = ccrs.Globe(**globe)
-    print(globe)
     crs = projection(globe=globe, **kwargs)
 
     # Transform the lat-lons to native format
