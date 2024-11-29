@@ -2,6 +2,7 @@ import xarray as xr
 import pandas as pd
 import numpy as np
 from projections import map_grid
+from datetime import datetime
 
 COORDS = dict(
     longitude="longitudes",
@@ -66,6 +67,48 @@ def valid_to_lead_time(ds):
     )
     return ds
 
+def load_model(**kwargs):
+    # Get the model specific loader
+    loader = get_loader(kwargs.pop("type"))
+
+    # Get the path-format
+    path_fmt = kwargs.pop("path")
+
+    # Get all the dates information
+    dates = kwargs.pop("dates")
+    start = np.datetime64(dates["start"])
+    end = np.datetime64(dates["end"])
+    value = dates["frequency"][:-1]
+    unit = dates["frequency"][-1]
+    frequency= np.timedelta64(value,unit)
+
+    # Start loop over dates
+    date = start
+    model = []
+    while date <= end:
+        kwargs["reference_time"] = date.astype('datetime64[ns]')
+        print(f"    - {date}")
+        # Some path-formatting (Can probably be done better)
+        date_dt = date.astype(datetime)
+        path = path_fmt.format(
+            yyyy=date_dt.strftime("%Y"),
+            yy=date_dt.strftime("%y"),
+            mm=date_dt.strftime("%m"),
+            dd=date_dt.strftime("%d"),
+            HH=date_dt.strftime("%H"),
+            MM=date_dt.strftime("%M"),
+            SS=date_dt.strftime("%S"),
+        )
+        model.append(
+            loader(
+                filename=path,
+                **kwargs
+            )
+        )
+        date += frequency
+    model = xr.concat(model,dim="reference_time")
+    return(model)
+
 
 ## LOADERS ##
 def anemoi_datasets(
@@ -95,6 +138,12 @@ def anemoi_datasets(
 
     # Remove the ensemble dimension
     ds = ds.isel(ensemble=0)
+ 
+    #FIXME: For now we have to convert the longitudes and latitudes to np.float32
+    # to match those of anemoi-inference netCDFs
+    # Convert the coordinates to np.float32 
+    ds["longitude"] = ds["longitude"].astype(np.float32)
+    ds["latitude"] = ds["latitude"].astype(np.float32)
 
     # Convert list to grid
     ds = list_to_grid(
