@@ -1,6 +1,7 @@
 import xarray as xr
 import pandas as pd
 import numpy as np
+from projections import build_native_domain
 
 COORDS = dict(
     longitude="longitudes",
@@ -72,7 +73,10 @@ def anemoi_datasets(
         valid_times=None,
         coords=COORDS,
         drop=DROP,
-        thinning=1):
+        thinning=1,
+        native_domain=None):
+    
+
 
     # Open the file
     ds = xr.open_zarr(filename,consolidated=False)
@@ -105,6 +109,11 @@ def anemoi_datasets(
         ds = ds.isel(x=slice(0,None,thinning),y=slice(0,None,thinning))
         ds.attrs["thinnig"] = thinning
 
+    # Build the native grid
+    if native_domain:
+        ds = build_native_domain(ds, native_domain)
+
+
     # Transform the a dataset with 1 dataarray per variable
     ds = ds.data.to_dataset(dim="variable")
     
@@ -124,6 +133,7 @@ def anemoi_inference(
         nx=None, 
         ny=None, 
         dataset_attrs=None,
+        native_domain=None,
         lead_time=True):
     
     # Open the file
@@ -160,11 +170,15 @@ def anemoi_inference(
         dim="values"
     )
 
+    # Build the native domain
+    if native_domain:
+        ds = build_native_domain(ds, native_domain)
+
     # Add a reference time
     if not reference_time:
         print("Warning: No reference_time provided, using first valid time")
         reference_time = ds["time"].data[0]
-    elif not np.issubdtype(reference_time, np.datetime64):
+    elif not isinstance(reference_time,np.datetime64):
         reference_time = np.datetime64(reference_time)
     
     ds = ds.expand_dims(reference_time=[reference_time])
