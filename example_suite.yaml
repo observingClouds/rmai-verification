@@ -40,7 +40,10 @@ verification:
 
 visualization:
   variables: base
+  metrics: all
   confidence_intervals: False #Not implemented yet
+  cols_per_page: 2
+  rows_per_page: 2
 
 
 output:

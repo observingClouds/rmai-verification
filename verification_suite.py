@@ -4,6 +4,7 @@ import numpy as np
 import xarray as xr
 from scores_registry import compute
 from datahandler import load_model, get_loader, get_saver
+from visualization import plot_variables_overview
 
 ### yaml files ###
 def write_yaml(x,fn,sort=False):
@@ -85,20 +86,33 @@ class VerificationSuite():
         output = self.config.get("output", None)
         if not output:
             pass
-        else:
-            saver = get_saver(output.get("type",'netcdf'))
-            path = output.get("path","scores.nc")
-            print(f"Saving scores to {path}")
-            self.scores.attrs["config"] = str(self.config)
-            saver(self.scores,path)
+        saver = get_saver(output.get("type",'netcdf'))
+        path = output.get("path","scores.nc")
+        print(f"Saving scores to {path}")
+        self.scores.attrs["config"] = str(self.config)
+        saver(self.scores,path)
 
-    
+    def plot_scores(self):
+        visualization = self.config.get("visualization",None)
+        if not visualization:
+            pass
+   
+        metrics = visualization.pop("metrics",self.metrics)
+        conf_intervals = visualization.pop("confidence_intervals",False)
+        if metrics == "all":
+            metrics = self.metrics
+        for metric in metrics:
+            print(f"Plotting metric: {metric}.")
+            plot_variables_overview(self.scores, metric, **visualization)
+        
+            
     def run(self):
         self.load_forecasts()
         self.load_observations()
         self.unify_variables()
         self.compute_scores()
         self.save_scores()
+        self.plot_scores()
 
 if __name__ == "__main__":
 

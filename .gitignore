@@ -3,3 +3,4 @@ worker.ipynb
 scrapbook.ipynb
 *.nc
 venv
+*.pdf
