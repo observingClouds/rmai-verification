@@ -51,17 +51,35 @@ class VerificationSuite():
         
     
     def compute_scores(self):
+        verification_type = self.config["verification"].get("type","temporal")
+        if verification_type == "temporal":
+            self.avg_dims = ["x","y"]
+        elif verification_type == "spatial":
+            self.avg_dims = ["reference_time"]
+        else:
+            raise KeyError(f"Verification type {verification_type} not supported (yet).")
+        #TODO: Unify metrics to upper or lower case
+        self.metrics = self.config["verification"].get("metrics",["RMSE", "BIAS"])        
+        chunking = dict()
+        for dim in self.avg_dims:
+            chunking[dim] = -1
         _scores = []
-        for score, dim in self.config['scores'].items():
-            print(f"Computing {score}.")
+
+        for metric in self.metrics:
+            print(f"Computing {metric}.")
             def map_compute(model):
                 #TODO fix chunking issue
-                ds = compute(self.observations.chunk({dim[0]:-1}), model, score, dim=dim)
+                ds = compute(
+                    self.observations.chunk(chunking),
+                    model,
+                    metric,
+                    dim=self.avg_dims)
                 return ds
+            
             _score = self.forecasts.groupby("model").map(map_compute)
-            _score = _score.expand_dims(dim={"score": [score]})
+            _score = _score.expand_dims(dim={"metric": [metric]})
             _scores.append(_score)
-        self.scores = xr.concat(_scores,dim="score")
+        self.scores = xr.concat(_scores,dim="metric")
     
     def save_scores(self):
         output = self.config.get("output", None)
