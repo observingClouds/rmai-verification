@@ -1,26 +1,14 @@
 import cartopy.crs as ccrs
+import yaml
 
-MAPPINGS = {
-    "cerra" : {
-        "projection" : "lcc",
-        "projection_kws" : {
-            "globe" : {
-                "semimajor_axis" : 6371229.0,
-                "semiminor_axis" : 6371229.0,
-            },
-            "central_longitude" : 8.0,
-            "central_latitude" : 50.0,
-            "standard_parallels" : (50.0, 50.0),
-        },
-        "grid" : {
-            "delta_x" : 5500.0,
-            "delta_y" : 5500.0,
-        },
-    },
-}
+with open("grid_mappings.yaml") as stream:
+    try:
+        MAPPINGS = yaml.safe_load(stream)
+    except yaml.YAMLError as exc:
+        print(exc)
 
 PROJECTIONS = {
-    "lcc" : ccrs.LambertConformal,
+    "lcc" : ccrs.LambertConformal,  
 }
 
 def map_grid(dataset, grid_mapping):
