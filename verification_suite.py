@@ -98,7 +98,6 @@ class VerificationSuite():
             pass
    
         metrics = visualization.pop("metrics",self.metrics)
-        conf_intervals = visualization.pop("confidence_intervals",False)
         if metrics == "all":
             metrics = self.metrics
         for metric in metrics:

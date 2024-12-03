@@ -39,10 +39,10 @@ verification:
     - BIAS
 
 visualization:
-  variables: base
+  variables: all
   metrics: all
-  confidence_intervals: False #Not implemented yet
-  cols_per_page: 2
+  confidence_intervals: True
+  cols_per_page: 3
   rows_per_page: 2
 
 
