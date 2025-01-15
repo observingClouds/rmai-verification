@@ -82,6 +82,12 @@ def load_model(**kwargs):
     unit = dates["frequency"][-1]
     frequency= np.timedelta64(value,unit)
 
+    # Get reshaping information
+    reshape = kwargs.pop("reshape",False)
+    nx = kwargs.pop("nx",None)
+    ny = kwargs.pop("ny",None)
+    grid_mapping = kwargs.pop("remapping",None)
+    
     # Start loop over dates
     date = start
     model = []
@@ -107,6 +113,35 @@ def load_model(**kwargs):
         )
         date += frequency
     model = xr.concat(model,dim="reference_time")
+
+    if reshape:    
+        # Get the total number of gridpoints
+        ngridpoints = model.sizes["values"]
+
+        # Try to figure out the grid-dimensions
+        if not nx and not ny:
+            print("Warning: No nx and ny provided, trying to build a square grid")
+            nx = ny =  np.sqrt(ngridpoints)
+        elif not nx:
+            nx = ngridpoints/ny
+        elif not ny:
+            ny = ngridpoints/nx
+
+        # Check if nx and ny are integers
+        assert int(nx) == nx and int(ny) == ny, "'nx' and 'ny' must be integers."
+
+        # Convert list to grid
+        model=list_to_grid(
+            ds=model,
+            nx=nx,
+            ny=ny,
+            dim="values"
+        )
+
+        # Map grid
+        if grid_mapping:
+            model = map_grid(model, grid_mapping)
+
     return(model)
 
 
@@ -197,12 +232,13 @@ def anemoi_inference(
     
     # set latitude and longitude as coordinates
     ds = ds.assign_coords(latitude=ds.latitude).assign_coords(longitude=ds.longitude)
-#    ds = ds[vars]
+
     # Add additional attributes
     if dataset_attrs:
         for key, value in dataset_attrs.items():
             ds.attrs[key] = value
 
+#   TODO: this can be made into a function
     if reshape:    
         # Get the total number of gridpoints
         ngridpoints = ds.sizes["values"]
