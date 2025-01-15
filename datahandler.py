@@ -86,7 +86,7 @@ def load_model(**kwargs):
     reshape = kwargs.pop("reshape",False)
     nx = kwargs.pop("nx",None)
     ny = kwargs.pop("ny",None)
-    grid_mapping = kwargs.pop("remapping",None)
+    grid_mapping = kwargs.pop("grid_mapping",None)
     
     # Start loop over dates
     date = start
@@ -139,6 +139,7 @@ def load_model(**kwargs):
         )
 
         # Map grid
+        print(f"Grid mapping: {grid_mapping}")
         if grid_mapping:
             model = map_grid(model, grid_mapping)
 
@@ -225,7 +226,7 @@ def anemoi_inference(
     chunks = {
         "time" : -1,
         "values" : -1
-    }
+    } # We can also use chunks="auto"?
 
     # Open the file
     ds = xr.open_dataset(filename,chunks=chunks)
