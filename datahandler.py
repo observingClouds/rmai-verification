@@ -177,51 +177,59 @@ def anemoi_datasets(
     return ds
   
 def anemoi_inference(
-        filename, 
-        reference_time=None, 
+        filename,
+        reference_time=None,
+        reshape = False, 
         nx=None, 
         ny=None, 
         dataset_attrs=None,
         grid_mapping=None,
         lead_time=True):
     
+    # We need to set the chunksize to tell xarray to use Dask
+    chunks = {
+        "time" : -1,
+        "values" : -1
+    }
+
     # Open the file
-    ds = xr.open_dataset(filename)
+    ds = xr.open_dataset(filename,chunks=chunks)
     
     # set latitude and longitude as coordinates
     ds = ds.assign_coords(latitude=ds.latitude).assign_coords(longitude=ds.longitude)
-    
+#    ds = ds[vars]
     # Add additional attributes
     if dataset_attrs:
         for key, value in dataset_attrs.items():
             ds.attrs[key] = value
-    
-    # Get the total number of gridpoints
-    ngridpoints = ds.sizes["values"]
 
-    # Try to figure out the grid-dimensions
-    if not nx and not ny:
-        print("Warning: No nx and ny provided, trying to build a square grid")
-        nx = ny =  np.sqrt(ngridpoints)
-    elif not nx:
-        nx = ngridpoints/ny
-    elif not ny:
-        ny = ngridpoints/nx
+    if reshape:    
+        # Get the total number of gridpoints
+        ngridpoints = ds.sizes["values"]
 
-    # Check if nx and ny are integers
-    assert int(nx) == nx and int(ny) == ny, "'nx' and 'ny' must be integers."
+        # Try to figure out the grid-dimensions
+        if not nx and not ny:
+            print("Warning: No nx and ny provided, trying to build a square grid")
+            nx = ny =  np.sqrt(ngridpoints)
+        elif not nx:
+            nx = ngridpoints/ny
+        elif not ny:
+            ny = ngridpoints/nx
 
-    # Convert list to grid
-    ds=list_to_grid(
-        ds=ds,
-        nx=nx,
-        ny=ny,
-        dim="values"
-    )
+        # Check if nx and ny are integers
+        assert int(nx) == nx and int(ny) == ny, "'nx' and 'ny' must be integers."
 
-    # Map grid
-    if grid_mapping:
-        ds = map_grid(ds, grid_mapping)
+        # Convert list to grid
+        ds=list_to_grid(
+            ds=ds,
+            nx=nx,
+            ny=ny,
+            dim="values"
+        )
+
+        # Map grid
+        if grid_mapping:
+            ds = map_grid(ds, grid_mapping)
 
     # Add a reference time
     if not reference_time:
