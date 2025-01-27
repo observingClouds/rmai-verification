@@ -15,7 +15,7 @@ forecasts:
 observations:
   CERRA: 
     type: anemoi-datasets
-    path: /scratch/project_465001235/datasets/lam-rr-an-oper-0001-mars-5p5km-1984-2020-3h-rmi-v1.zarr
+    path: /scratch/project_465001235/datasets/cerra-rr-an-oper-0001-mars-5p5km-1984-2020-3h-v2-rmi.zarr
     thinning: 4
     grid_mapping:
       projection: lcc
@@ -31,19 +31,19 @@ observations:
         delta_y : 5500.0
 
 verification:
-  type: temporal
+  type: spatial
   reference_model: cerra
   variables: all
   metrics:
     - RMSE
     - BIAS
 
-visualization:
-  variables: all
-  metrics: all
-  confidence_intervals: True
-  cols_per_page: 3
-  rows_per_page: 2
+# visualization:
+#   variables: all
+#   metrics: all
+#   confidence_intervals: True
+#   cols_per_page: 3
+#   rows_per_page: 2
 
 
 output:

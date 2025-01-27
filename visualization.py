@@ -3,6 +3,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import xskillscore as xs
 import xarray as xr
 import numpy as np
+from projections import get_cartopy_crs
 
 DEFAULT_VARS = ["z_500","t_500","u_500","v_500"]
 
@@ -49,26 +50,28 @@ def plot_variables_overview(scores, metric, **kwargs):
     
     dims = list(scores.sizes.keys())
     
-    # Some consistency checking
-    if "x" in dims:
-        assert "y" in dims, "The dataset only has 1 spatial dimension, y is missing"
-    if "y" in dims:
-        assert "x" in dims, "The dataset only has 1 spatial dimension, x is missing"
-    
+        
     if "x" in dims or "y" in dims:
+        # Some consistency checking
+        if "x" in dims:
+            assert "y" in dims, "The dataset only has 1 spatial dimension, y is missing"
+        if "y" in dims:
+            assert "x" in dims, "The dataset only has 1 spatial dimension, x is missing"
+        
         # Prepare for spatial overview
         plotter = get_plotter("spatial")
-        plot_dims = ["x","y","model"]
+        plot_dims = ["x","y","model","metric"]
         avg_dims = [item for item in dims if item not in plot_dims]
         assert len(avg_dims) == 1, "More than 1 avg_dims found!"
-        avg_dim = avg_dims[0]
-        data = scores.group_by("model").mean(avg_dim)
-        plotter = get_plotter("spatial")
+        _mean = data.mean(avg_dims).to_dataarray(dim="variable")
+        data = xr.Dataset({"mean": _mean})
+
+
     else:
         # Prepare for temporal overview
         # FIXME: avg_dim is now fixed to "reference_time"
         # You could also want to plot things w.r.t. the time of the day for instance
-        # Should we include these options here is this to specific?
+        # Should we include these options here or is this too specific?
         plotter = get_plotter("temporal")
         avg_dim = "reference_time"
         if confidence_intervals:
@@ -101,8 +104,42 @@ def plot_variables_overview(scores, metric, **kwargs):
     plotter(data,**kwargs)
 
 def plot_spatial_overview(data, **kwargs):
-    pass
-    #data.to_dataarray.plot(x="x",y="y")
+    
+    print(kwargs)
+    rows_per_page = kwargs.pop("rows_per_page",2)
+    cols_per_page = kwargs.pop("cols_per_page",3)
+    crs = kwargs.pop("grid_mapping",None)
+    if crs:
+        kwargs["subplot_kws"] = crs
+    defaults = dict(
+        figsize=(17,10),
+        aspect=16/9,
+    )
+    
+    for key, value in defaults.items():
+        if key not in kwargs:
+            kwargs[key] = value
+    
+    data = data["mean"]
+    
+    filename = f"{data['metric'].values}-spatial-overview.pdf"
+    with PdfPages(filename) as pdf:
+    # Loop over all variables
+        for var in data["variable"].values:
+            g = data.sel(
+                variable=var
+            ).plot(
+                x="x",
+                y="y",
+                col="model",
+                col_wrap=cols_per_page,
+                **kwargs,
+            )
+
+            # Save the current page to the PDF
+            pdf.savefig(g.fig)
+            plt.close(g.fig)  # Close the figure to avoid overlapping plots
+
 
 def plot_temporal_overview(data, **kwargs):
 

@@ -11,12 +11,11 @@ PROJECTIONS = {
     "lcc" : ccrs.LambertConformal,  
 }
 
-def map_grid(dataset, grid_mapping):
-    # If native domain is a string, get the specifications from the pre-defined mappings
+def get_cartopy_crs(grid_mapping):
+        # If native domain is a string, get the specifications from the pre-defined mappings
     if isinstance(grid_mapping, str):
         assert grid_mapping in MAPPINGS, f"Grid mapping {grid_mapping} not supported, please provide a dictionary with the specifications"
         grid_mapping = dict(MAPPINGS[grid_mapping])
-
     # Build the cartopy CRS    
     assert grid_mapping["projection"] in PROJECTIONS, f"Projection {grid_mapping['projection']} not supported (yet)."
     projection = PROJECTIONS[grid_mapping["projection"]]
@@ -25,6 +24,11 @@ def map_grid(dataset, grid_mapping):
     if globe:
         globe = ccrs.Globe(**globe)
     crs = projection(globe=globe, **kwargs)
+    return crs
+
+def map_grid(dataset, grid_mapping):
+    # Cartopy CRS
+    crs = get_cartopy_crs(grid_mapping)
 
     # Transform the lat-lons to native format
     assert "longitude" in dataset.coords and "latitude" in dataset.coords, "dataset must contain longitudes and latitudes, building domain from domain edges not implemented (yet)."

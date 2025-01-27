@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from projections import map_grid
 from datetime import datetime
+import os
 
 COORDS = dict(
     longitude="longitudes",
@@ -51,20 +52,27 @@ def list_to_grid(ds, nx, ny, dim="values"):
         mindex, dim)
     return ds.assign_coords(mindex_coords).unstack()
 
-def valid_to_lead_time(ds):
-    assert "valid_time" in ds.coords and "reference_time" in ds.coords, "Need a valid_time and reference_time coordinate"
-    ds = ds.assign_coords(
-        lead_time=("time", ds.valid_time.data - ds.reference_time.data)
-    )
-    ds = ds.swap_dims({"time":"lead_time"})
+def valid_to_lead_time(ds,reference_time=None):
+    assert "valid_time" in ds.coords, "Need a valid_time coordinate"
+    if "reference_time" in ds.coords:
+        ds = ds.assign_coords(
+            lead_time=("time", ds.valid_time.data - ds.reference_time.data)
+        )
+    else:
+        print("Warning: No reference time present, taking the first valid_time as reference_time")
+        ds = ds.assign_coords(
+            lead_time=("time", ds.valid_time.data - ds.valid_time.data[0])
+        )
+    ds = ds.drop_vars("valid_time")
+#    ds = ds.swap_dims({"time":"lead_time"})
 
     # Make valid_time a 2 dimensional array for easier merging
-    ds = ds.assign_coords(
-        valid_time=(
-            ["reference_time","lead_time"],
-            ds.valid_time.data[np.newaxis,:]
-        )
-    )
+#    ds = ds.assign_coords(
+#        valid_time=(
+#            ["reference_time","lead_time"],
+#            ds.valid_time.data[np.newaxis,:]
+#        )
+#    )
     return ds
 
 def load_model(**kwargs):
@@ -91,8 +99,9 @@ def load_model(**kwargs):
     # Start loop over dates
     date = start
     model = []
+    reference_time = []
     while date <= end:
-        kwargs["reference_time"] = date.astype('datetime64[ns]')
+        #kwargs["reference_time"] = date.astype('datetime64[ns]')
         print(f"    - {date}")
         # Some path-formatting (Can probably be done better)
         date_dt = date.astype(datetime)
@@ -105,14 +114,20 @@ def load_model(**kwargs):
             MM=date_dt.strftime("%M"),
             SS=date_dt.strftime("%S"),
         )
-        model.append(
-            loader(
-                filename=path,
-                **kwargs
+        if not os.path.isfile(path):
+            print(f"Warning no file for date {date_dt.strftime('%Y%m%d %H:%M')}, skipping file")
+            pass
+        else:
+            model.append(
+                loader(
+                    filename=path,
+                    **kwargs
+                )
             )
-        )
+            reference_time.append(date.astype('datetime64[ns]'))
         date += frequency
-    model = xr.concat(model,dim="reference_time")
+
+    #model = xr.concat(model,dim="reference_time")
 
     if reshape:    
         # Get the total number of gridpoints
@@ -143,7 +158,7 @@ def load_model(**kwargs):
         if grid_mapping:
             model = map_grid(model, grid_mapping)
 
-    return(model)
+    return((reference_time,model))
 
 
 ## LOADERS ##
@@ -200,7 +215,7 @@ def anemoi_datasets(
 
 
     # Transform the a dataset with 1 dataarray per variable
-    ds = ds.data.to_dataset(dim="variable")
+    ds = ds["data"].to_dataset(dim="variable")
     
     # Make valid_time the main time dimension
     #TODO: Fix non-nanosecond precision warning
@@ -211,18 +226,50 @@ def anemoi_datasets(
         ds = ds.sel(valid_time=valid_times)
 
     return ds
-  
+
+
+def preprocess(ds):
+    ds_coords = ds.assign_coords(
+        latitude=ds.latitude
+    ).assign_coords(
+       longitude=ds.longitude
+    )
+    reference_time = ds_coords["time"].data[0]
+    ds_reftime = ds_coords.expand_dims(reference_time=[reference_time])
+    ds_reftime.reference_time.attrs["standard_name"] = "forecast_reference_time"
+    ds_validtime = ds_reftime.rename_vars({"time": "valid_time"})
+    ds_leadtime = ds_validtime.assign_coords(
+       lead_time=(
+           "time", 
+           ds_validtime.valid_time.data - ds_validtime.reference_time.data
+       )
+    )
+    ds_swapped = ds_leadtime.swap_dims({"time":"lead_time"})
+
+    # Make valid_time a 2 dimensional array for easier merging
+    ds_final = ds_swapped.assign_coords(
+       valid_time=(
+           ["reference_time","lead_time"],
+           ds_swapped.valid_time.data[np.newaxis,:]
+       )
+    )
+    return(ds_final)
+
+
+
 def anemoi_inference(
         filename,
-        reference_time=None,
+        reference_time=False,
         reshape = False, 
         nx=None, 
         ny=None, 
         dataset_attrs=None,
         grid_mapping=None,
-        lead_time=True):
-    
+        correct_coords=False,
+        lead_time=False,
+    ):
     # We need to set the chunksize to tell xarray to use Dask
+    # Have 1 chunk per file!
     chunks = {
         "time" : -1,
         "values" : -1
@@ -232,7 +279,10 @@ def anemoi_inference(
     ds = xr.open_dataset(filename,chunks=chunks)
     
     # set latitude and longitude as coordinates
-    ds = ds.assign_coords(latitude=ds.latitude).assign_coords(longitude=ds.longitude)
+    if correct_coords:
+        ds = ds.assign_coords(latitude=ds.latitude).assign_coords(longitude=ds.longitude)
+
+        
 
     # Add additional attributes
     if dataset_attrs:
@@ -269,23 +319,23 @@ def anemoi_inference(
             ds = map_grid(ds, grid_mapping)
 
     # Add a reference time
-    if not reference_time:
-        print("Warning: No reference_time provided, using first valid time")
-        reference_time = ds["time"].data[0]
-    elif not isinstance(reference_time,np.datetime64):
-        reference_time = np.datetime64(reference_time)
+    if reference_time:
+        if isinstance(reference_time,bool):
+            print("Warning: No reference_time provided, using first valid time")
+            reference_time = ds["time"].data[0]
+        elif not isinstance(reference_time,np.datetime64):
+            reference_time = np.datetime64(reference_time)    
+        ds = ds.expand_dims(reference_time=[reference_time])
+        ds.reference_time.attrs["standard_name"] = "forecast_reference_time"
     
-    ds = ds.expand_dims(reference_time=[reference_time])
-    ds.reference_time.attrs["standard_name"] = "forecast_reference_time"
-
     # Rename the time coordinate to valid_time
-    ds = ds.rename_vars({"time": "valid_time"})
+    output = ds.rename_vars({"time": "valid_time"})
 
     # Add leadtimes and set as dimension
     if lead_time:
-        ds = valid_to_lead_time(ds)
-        
-    return(ds)
+        output = valid_to_lead_time(output)
+    ds.close()
+    return(output)
 
 ## SAVERS ##
 def save_to_netcdf(ds, filepath, **kwargs):
