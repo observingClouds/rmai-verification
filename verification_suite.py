@@ -149,6 +149,7 @@ class DataGroup():
     def post_process(self):
         self.forecasts, self.observations = post_processor(self.post_processing, self.forecasts, self.observations)
 
+
     def load(self):
         self.load_forecasts()
         self.load_observations()
