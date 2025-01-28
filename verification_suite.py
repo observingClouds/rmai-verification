@@ -213,8 +213,6 @@ class VerificationSuite():
         
     
     def compute_scores(self):
-        fcst = self.forecasts 
-        obs = self.observations
         verification_type = self.config["verification"].get("type","temporal")
         if verification_type == "temporal":
             self.avg_dims = ["values"]
@@ -234,8 +232,8 @@ class VerificationSuite():
             def map_compute(model):
                 #TODO fix chunking issue
                 ds = compute(
-                    obs,
-                    fcst,
+                    self.observations,
+                    model,
                     metric,
                     dim=self.avg_dims)
                 return ds
