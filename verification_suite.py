@@ -20,27 +20,46 @@ def load_yaml(fn):
     with open(fn,'r') as f:
         return yaml.safe_load(f)
 
-class VerificationSuite():
-    def   __init__(self,fn):
-        self.config = load_yaml(fn)
+def prepare_dates(date_cfg):
+    dates=[]
+    start = np.datetime64(date_cfg["start"])
+    end = np.datetime64(date_cfg["end"])
+    value = date_cfg["frequency"][:-1]
+    unit = date_cfg["frequency"][-1]
+    frequency= np.timedelta64(value,unit)
+    date = start
+    files = []
+    while date <= end:
+        dates.append(date.astype(datetime))
+        date += frequency
+    return dates
+
+class DataGroup():
+    def __init__(self, group_dict, fc_config, obs_config, dates, variables):
+        self.data_names=group_dict.pop('data')
+        self.post_processing=group_dict
+        self.fc_config={ name : kwargs for name, kwargs in fc_config.items() if name in self.data_names}
+        self.obs_config={ name : kwargs for name, kwargs in obs_config.items() if name in self.data_names}
+        self.dates = dates
+        self.variables = variables
 
     def load_forecasts(self):
-        forecasts = self.config["forecasts"]
         models = []
         #TODO rewrite in seperate function
-        for model, kwargs in forecasts.items():
+        for model, kwargs in self.fc_config.items():
             loader = kwargs.pop("type")
             load_model = get_loader(loader)
             # Get the path-format
             path_fmt = kwargs.pop("path")
 
+            ## below no longer needed, dates read at higher level
             # Get all the dates information
-            dates = kwargs.pop("dates")
-            start = np.datetime64(dates["start"])
-            end = np.datetime64(dates["end"])
-            value = dates["frequency"][:-1]
-            unit = dates["frequency"][-1]
-            frequency= np.timedelta64(value,unit)
+            # dates = kwargs.pop("dates")
+            # start = np.datetime64(dates["start"])
+            # end = np.datetime64(dates["end"])
+            # value = dates["frequency"][:-1]
+            # unit = dates["frequency"][-1]
+            # frequency= np.timedelta64(value,unit)
 
             # Get reshaping information
             reshape = kwargs.pop("reshape",False)
@@ -49,10 +68,9 @@ class VerificationSuite():
             grid_mapping = kwargs.pop("grid_mapping",None)
 
             # List all files
-            date = start
             files = []
-            while date <= end:
-                date_dt = date.astype(datetime)
+            for date_dt in self.dates:
+                #date_dt = date.astype(datetime)
                 path = path_fmt.format(
                     yyyy=date_dt.strftime("%Y"),
                     yy=date_dt.strftime("%y"),
@@ -66,19 +84,19 @@ class VerificationSuite():
                     print(f"Warning no file for date {date_dt.strftime('%Y%m%d %H:%M')}, skipping file")
                 else:
                     files.append(path)
-                date += frequency
 
             # Actual loading
             print(f"Loading model: {model}")
             data = load_model(files)
-            data = data.expand_dims(model=[model])
+            if 'model' not in data.dims:
+                data = data.expand_dims(model=[model])
             models.append(data)
         # Use merge to not throw away variables that are not common?
         self.forecasts = xr.merge(models) 
 
     def load_observations(self):
-        observations = self.config["observations"]
-        assert len(observations) == 1, "Verification against multiple obersvation types not implemented yet"
+        observations = self.obs_config
+        assert len(observations) == 1, "Loading of multiple observation types per data group not implemented yet"
         (obs_name, kwargs) = next(iter(observations.items()))
         # Get the model specific loader
         loader = get_loader(kwargs.pop("type"))
@@ -89,15 +107,15 @@ class VerificationSuite():
             filename=path,
         #   valid_time=self.forecasts["valid_time"], Not working ATM
             **kwargs
-        )
+            )
 
-#   Keep only those variables that are needed
+    #   Keep only those variables that are needed
     def unify(self):
         # Observations is a data-array
         if "variable" in self.observations.dims:
             common_vars = list(set(self.forecasts).intersection(set(self.observations["variable"].values)))
-            if not self.config["verification"].get("variables","all") == "all":
-                common_vars = [var for var in common_vars if var in self.config["verification"]["variables"]]
+            if not self.variables == "all":
+                common_vars = [var for var in common_vars if var in self.variables]
             obs_reduced = self.observations.sel(
                 valid_time=self.forecasts["valid_time"],
                 variable = common_vars
@@ -113,8 +131,8 @@ class VerificationSuite():
         # Observations is a dataset
         else:
             common_vars = list(set(self.forecasts).intersection(set(self.observations)))
-            if not self.config["verification"].get("variables","all") == "all":
-                common_vars = [var for var in common_vars if var in self.config["verification"]["variables"]]
+            if not self.variables == "all":
+                common_vars = [var for var in common_vars if var in self.variables]
             obs_reduced = self.observations["commom_vars"].sel(
                 valid_time=self.forecasts["valid_time"]
             ).chunk(
@@ -133,10 +151,70 @@ class VerificationSuite():
             }
         )
         #TODO: Warn if there are asked variables not common
-        return (fcst_reduced, obs_reduced)
+        self.forecasts, self.observations =  (fcst_reduced, obs_reduced)
+
+    def post_process(self):
+        pass
+
+    def load(self):
+        self.load_forecasts()
+        self.load_observations()
+        self.unify()
+        self.post_process()
+
+class VerificationSuite():
+    def   __init__(self,fn):
+        self.config = load_yaml(fn)
+
+
+    def prepare_workflow(self):
+        # create list of dates from config
+        self.dates=prepare_dates(self.config['dates'])
+        # get list of variables if specified
+        self.variables=self.config.get('variables','all')
+        # set up data groups
+        self.data_groups=self.get_data_groups()
+        # set up verification
+        self.verification = self.config['verification']
+        # set up visualization
+        self.visualization = self.config['visualization']
+        # set up output
+        self.output = self.config['output']
+        
+    def get_data_groups(self):
+        fc_config=self.config.get('forecasts',{})
+        obs_config=self.config.get('observations',{})
+        
+        data_types=list(fc_config)+list(obs_config)
+        
+        post_processing_groups=self.config.get('post_processing',[])
+        
+        post_processed_data=[]
+        data_groups=[]
+        
+        for group_dict in post_processing_groups:
+            post_processed_data += group_dict['data']
+            data_groups.append(DataGroup(group_dict,fc_config,obs_config,self.dates,self.variables))
+            
+        trivial_data=[data for data in data_types if data not in post_processed_data]
+        trivial_group=DataGroup({'data':trivial_data},fc_config,obs_config,self.dates,self.variables)
+        
+        return [trivial_group] + data_groups
+    
+    def load_data(self):
+        fcs=[]
+        obs=[]
+        for data_group in self.data_groups:
+            data_group.load()
+            fcs.append(data_group.forecasts)
+            obs.append(data_group.observations)
+        self.forecasts=xr.merge(fcs)
+        self.observations=xr.merge(obs)
+        
     
     def compute_scores(self):
-        fcst, obs = self.unify()
+        fcst = self.forecasts 
+        obs = self.observations
         verification_type = self.config["verification"].get("type","temporal")
         if verification_type == "temporal":
             self.avg_dims = ["values"]
@@ -191,8 +269,8 @@ class VerificationSuite():
         
             
     def run(self):
-        self.load_forecasts()
-        self.load_observations()
+        self.prepare_workflow()
+        self.load_data()
         self.compute_scores()
         self.save_scores()
         self.plot_scores()
