@@ -1,8 +1,8 @@
 import xskillscore as xs
 
 REGISTRY=dict(
-    RMSE = lambda ref, fc, dim : xs.rmse(ref, fc, dim=dim),
-    BIAS = lambda ref, fc, dim : xs.me(ref, fc, dim=dim)
+    RMSE = lambda ref, fc, dim : xs.rmse(ref, fc, dim=dim, skipna=True),
+    BIAS = lambda ref, fc, dim : xs.me(ref, fc, dim=dim, skipna=True)
 )
 
 def compute(ref, fc, score ,dim=None):

@@ -1,7 +1,12 @@
-dates:
-      start: 2020-01-01 12:00:00
-      end: 2020-01-31 12:00:00
-      frequency: 24h
+reference_times:
+  start: 2020-01-01 12:00:00
+  end: 2020-01-31 12:00:00
+  frequency: 24h
+
+lead_times:
+  start: 0h
+  end: 60h 
+  frequency: 6h
 
 variables: [z_500, 2t, 10u, 10v, 2d, t_500]
 
@@ -10,14 +15,6 @@ forecasts:
   anemoi_v0:
     type: anemoi-inference
     path: /scratch/project_465001235/vandenbl/anemoi/experiments/inference/first_full_year/outputs/{yyyy}{mm}{dd}{HH}.nc
-    reshape: False # No reshaping necessary since we want to calculates timeseries
-    reference_time: False
-    correct_coords: False
-    nx: 1069
-    ny: 1069
-    grid_mapping: null
-    dataset_attrs:
-      thinning: 1
 
 observations:
   CERRA: 
@@ -30,22 +27,9 @@ observations:
         10v_10: 10v
         msl_0: msl
         tciwv_0: ticwv
-    # grid_mapping: 
-    #   projection: lcc
-    #   projection_kws:
-    #     globe:
-    #       semimajor_axis: 6371229.0
-    #       semiminor_axis: 6371229.0
-    #     central_longitude: 8.0
-    #     central_latitude: 50.0
-    #     standard_parallels: [50.0, 50.0]
-    #   grid:
-    #     delta_x : 5500.0
-    #     delta_y : 5500.0
 
 verification:
   type: temporal
-  reference_model: cerra
   variables: [z_500, 2t, 10u, 10v, 2d, t_500]
   metrics:
     - RMSE

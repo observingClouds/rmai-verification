@@ -197,7 +197,8 @@ class VerificationSuite():
         obs = self.observations
         
         # handle case with multiple observation types
-        obs_names=list(obs['name'].values)
+        obs_names=list(obs.coords['name'].values)
+
         if len(obs_names) > 1:
             ref_model = self.verification.get('reference_model')
             assert ref_model in obs_names, 'When more than one set of observations is provided, a reference model needs to be specified.'
@@ -227,26 +228,25 @@ class VerificationSuite():
             def map_compute(model):
                 #TODO fix chunking issue
                 ds = compute(
-                    self.observations,
+                    obs,
                     model,
                     metric,
                     dim=self.avg_dims)
                 return ds
             
-            _score = self.forecasts.groupby("model").map(map_compute)
+            _score = fcs.groupby("model").map(map_compute)
             _score = _score.expand_dims(dim={"metric": [metric]})
             _scores.append(_score)
         self.scores = xr.concat(_scores,dim="metric").compute()
     
     def save_scores(self):
-        output = self.config.get("output", None)
-        if not output:
-            pass
-        saver = get_saver(output.get("type",'netcdf'))
-        path = output.get("path","scores.nc")
-        print(f"Saving scores to {path}")
-        self.scores.attrs["config"] = str(self.config)
-        saver(self.scores,path)
+        output = self.config.get("output")
+        if output:
+            saver = get_saver(output.get("type",'netcdf'))
+            path = output.get("path","scores.nc")
+            print(f"Saving scores to {path}")
+            self.scores.attrs["config"] = str(self.config)
+            saver(self.scores,path)
 
     def plot_scores(self):
         visualization = self.visualization

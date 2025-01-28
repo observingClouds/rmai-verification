@@ -1,7 +1,7 @@
 reference_times:
   start: 2020-01-02 00:00:00
-  end: 2020-01-02 00:00:00
-  frequency: 24h
+  end: 2020-01-31 00:00:00
+  frequency: 12h
 
 lead_times:
   start: 0h
@@ -11,9 +11,9 @@ lead_times:
 variables: [2t, 10u, 10v, 10s]
 
 forecasts:
-  # anemoi_v0:
-  #   type: anemoi-inference
-  #   path: /scratch/project_465001235/vandenbl/anemoi/experiments/inference/first_full_year/outputs/{yyyy}{mm}{dd}{HH}.nc
+  anemoi_v0:
+    type: anemoi-inference
+    path: /scratch/project_465001235/vandenbl/anemoi/experiments/inference/first_full_year/outputs/{yyyy}{mm}{dd}{HH}.nc
   
   INDRA:
     type: rmi-re-pytools-fc
@@ -48,7 +48,7 @@ observations:
 
 post_processing:
   - data:
-      #- anemoi_v0
+       - anemoi_v0
        - CERRA
     interpolation:
         grid: cerra
@@ -69,18 +69,18 @@ post_processing:
 
 verification:
   type: temporal
-  reference_model: CERRA
+  reference_model: SYNOP
   variables: [2t, 10s]
   metrics:
     - RMSE
     - BIAS
 
-# visualization:
-#    variables: [2t, 10s]
-#    metrics: all
-#    confidence_intervals: False
-#    cols_per_page: 3
-#    rows_per_page: 2
+visualization:
+   variables: [2t, 10s]
+   metrics: all
+   confidence_intervals: False
+   cols_per_page: 2
+   rows_per_page: 1
 
 
 output:
