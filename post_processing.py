@@ -6,7 +6,10 @@ from utils import load_yaml
 def post_processor(config, forecasts, observations):
     if len(config) == 0:
         return (forecasts, observations)
-    ds=xr.concat([forecasts,observations.expand_dims({'model':['TEMP']})],dim='model')
+    data_list=[observations.expand_dims({'model':['TEMP']})]
+    if 'model' in forecasts.dims:
+        data_list.append(forecasts)
+    ds=xr.concat(data_list,dim='model')
     for name, kwargs in config.items():
         processor = get_processor(name)
         ds = processor(ds, **kwargs)

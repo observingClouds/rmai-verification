@@ -6,33 +6,50 @@ from scores_registry import compute
 from datahandler import get_saver
 from visualization import plot_variables_overview
 from post_processing import post_processor
-from utils import load_yaml
+from utils import load_yaml, prepare_time
 from datetime import datetime
 import os
 #import dask.distributed
 from dask.distributed import Client, LocalCluster
 
-def prepare_dates(date_cfg):
-    dates=[]
-    start = np.datetime64(date_cfg["start"])
-    end = np.datetime64(date_cfg["end"])
-    value = date_cfg["frequency"][:-1]
-    unit = date_cfg["frequency"][-1]
-    frequency= np.timedelta64(value,unit)
-    date = start
-    files = []
-    while date <= end:
-        dates.append(date.astype(datetime))
-        date += frequency
-    return dates
+# utils
+  
 
+def get_variables(data):
+        # data is a data-array
+        if "variable" in data.dims:
+            vrs=list(data["variable"].values)
+        # data is a dataset
+        else:
+            vrs=list(data)
+        return vrs
+    
+def reduce_and_chunck(data, times, vrs):
+    spatial_dimension = data.attrs['spatial_dimension']
+    # data is a data-array
+    if "variable" in data.dims:
+        data_reduced = data.sel(variable = vrs).to_dataset(dim="variable")
+    # data is a dataset
+    else: 
+        data_reduced = data[vrs]
+    return data_reduced.sel(**times
+            ).chunk(
+            {
+                "reference_time": 2,
+                "lead_time": -1,
+                spatial_dimension: -1
+                }
+            )
+
+
+## Data Group
 class DataGroup():
-    def __init__(self, group_dict, fc_config, obs_config, dates, variables):
+    def __init__(self, group_dict, fc_config, obs_config, times, variables):
         self.data_names=group_dict.pop('data')
         self.post_processing=group_dict
         self.fc_config={ name : kwargs for name, kwargs in fc_config.items() if name in self.data_names}
         self.obs_config={ name : kwargs for name, kwargs in obs_config.items() if name in self.data_names}
-        self.dates = dates
+        self.times = times
         self.variables = variables
 
     def load_forecasts(self):
@@ -44,42 +61,9 @@ class DataGroup():
             # Get the path-format
             path_fmt = kwargs.pop("path")
 
-            ## below no longer needed, dates read at higher level
-            # Get all the dates information
-            # dates = kwargs.pop("dates")
-            # start = np.datetime64(dates["start"])
-            # end = np.datetime64(dates["end"])
-            # value = dates["frequency"][:-1]
-            # unit = dates["frequency"][-1]
-            # frequency= np.timedelta64(value,unit)
-
-            # Get reshaping information
-            reshape = kwargs.pop("reshape",False)
-            nx = kwargs.pop("nx",None)
-            ny = kwargs.pop("ny",None)
-            grid_mapping = kwargs.pop("grid_mapping",None)
-
-            # List all files
-            files = []
-            for date_dt in self.dates:
-                #date_dt = date.astype(datetime)
-                path = path_fmt.format(
-                    yyyy=date_dt.strftime("%Y"),
-                    yy=date_dt.strftime("%y"),
-                    mm=date_dt.strftime("%m"),
-                    dd=date_dt.strftime("%d"),
-                    HH=date_dt.strftime("%H"),
-                    MM=date_dt.strftime("%M"),
-                    SS=date_dt.strftime("%S"),
-                )
-                if not os.path.isfile(path):
-                    print(f"Warning no file for date {date_dt.strftime('%Y%m%d %H:%M')}, skipping file")
-                else:
-                    files.append(path)
-
             # Actual loading
             print(f"Loading model: {model}")
-            data = load_model(files)
+            data = load_model(self.times['reference_time'], path_fmt, **kwargs)
             if 'model' not in data.dims:
                 data = data.expand_dims(model=[model])
             models.append(data)
@@ -87,64 +71,45 @@ class DataGroup():
         self.forecasts = xr.merge(models) 
 
     def load_observations(self):
+        self.observations = xr.Dataset()
         observations = self.obs_config
-        print(observations)
-        assert len(observations) == 1, "Loading of multiple observation types per data group not implemented yet"
-        (obs_name, kwargs) = next(iter(observations.items()))
-        # Get the model specific loader
-        loader = get_loader(kwargs.pop("type"))
+        if len(observations) > 0:
+            assert len(observations) == 1, "Loading of multiple observation types per data group not implemented yet"
+            (obs_name, kwargs) = next(iter(observations.items()))
+            # Get the model specific loader
+            loader = get_loader(kwargs.pop("type"))
 
-        # Get the path
-        path = kwargs.pop("path")
-        self.observations = loader(
-            filename=path,
-        #   valid_time=self.forecasts["valid_time"], Not working ATM
-            **kwargs
-            )
+            # Get the path
+            path = kwargs.pop("path")
+            self.observations = loader(
+                filename=path,
+            #   valid_time=self.forecasts["valid_time"], Not working ATM
+                **kwargs
+                )
 
+   
+
+    
+        
     #   Keep only those variables that are needed
     def unify(self):
-        # Observations is a data-array
-        if "variable" in self.observations.dims:
-            common_vars = list(set(self.forecasts).intersection(set(self.observations["variable"].values)))
-            if not self.variables == "all":
-                common_vars = [var for var in common_vars if var in self.variables]
-            obs_reduced = self.observations.sel(
-                valid_time=self.forecasts["valid_time"],
-                variable = common_vars
-            ).to_dataset(
-                dim="variable"
-            ).chunk(
-                {
-                    "reference_time": 2,
-                    "lead_time": -1,
-                    "values": -1
-                }
-            )
-        # Observations is a dataset
-        else:
-            common_vars = list(set(self.forecasts).intersection(set(self.observations)))
-            if not self.variables == "all":
-                common_vars = [var for var in common_vars if var in self.variables]
-            obs_reduced = self.observations["commom_vars"].sel(
-                valid_time=self.forecasts["valid_time"]
-            ).chunk(
-                {
-                    "reference_time": 2,
-                    "lead_time": -1,
-                    "values": -1
-                }
-            )
-        print(common_vars)
-        fcst_reduced = self.forecasts[common_vars].chunk(
-            {
-                "reference_time": 2,
-                "lead_time": -1,
-                "values": -1
-            }
-        )
-        #TODO: Warn if there are asked variables not common
-        self.forecasts, self.observations =  (fcst_reduced, obs_reduced)
+        vrs=self.variables
+        fc_vars = get_variables(self.forecasts)
+        obs_vars = get_variables(self.observations)
+        if vrs != 'all':
+            fc_vars = [v for v in fc_vars if v in vrs]
+            obs_vars = [v for v in obs_vars if v in vrs]
+        elif len(fc_vars) > 0 and len(obs_vars) > 0:
+            fc_vars = [ v for v in fc_vars if v in obs_vars]
+            obs_vars = [ v for v in obs_vars if v in fc_vars]
+        
+        fc_times = { key : value for key, value in self.times.items() if key in ['reference_time', 'lead_time']}
+        obs_times = { key : value for key, value in self.times.items() if key in ['valid_time']}
+        
+        if fc_vars:
+            self.forecasts = reduce_and_chunck(self.forecasts, fc_times, fc_vars)
+        if obs_vars:
+            self.observations = reduce_and_chunck(self.observations, obs_times, obs_vars)
 
     def post_process(self):
         self.forecasts, self.observations = post_processor(self.post_processing, self.forecasts, self.observations)
@@ -163,7 +128,8 @@ class VerificationSuite():
 
     def prepare_workflow(self):
         # create list of dates from config
-        self.dates=prepare_dates(self.config['dates'])
+        time_info = { key : val for key,val in self.config.items() if key in ['reference_times', 'lead_times'] }
+        self.times = prepare_time(time_info)
         # get list of variables if specified
         self.variables=self.config.get('variables','all')
         # set up data groups
@@ -171,7 +137,7 @@ class VerificationSuite():
         # set up verification
         self.verification = self.config['verification']
         # set up visualization
-        self.visualization = self.config['visualization']
+        self.visualization = self.config.get("visualization")
         # set up output
         self.output = self.config['output']
         
@@ -187,11 +153,11 @@ class VerificationSuite():
         
         for group_dict in post_processing_groups:
             post_processed_data += group_dict['data']
-            data_groups.append(DataGroup(group_dict,fc_config,obs_config,self.dates,self.variables))
+            data_groups.append(DataGroup(group_dict,fc_config,obs_config,self.times,self.variables))
             
         trivial_data=[data for data in data_types if data not in post_processed_data]
         if trivial_data:
-            trivial_group = DataGroup({'data':trivial_data},fc_config,obs_config,self.dates,self.variables)
+            trivial_group = DataGroup({'data':trivial_data},fc_config,obs_config,self.times,self.variables)
             data_groups.append(trivial_group)
         
         return data_groups
@@ -199,16 +165,49 @@ class VerificationSuite():
     def load_data(self):
         fcs=[]
         obs=[]
+        common_vars=[]
         for data_group in self.data_groups:
             data_group.load()
-            fcs.append(data_group.forecasts)
-            obs.append(data_group.observations)
-        self.forecasts=xr.merge(fcs)
-        self.observations=xr.merge(obs)
+            fc=data_group.forecasts
+            ob=data_group.observations
+            fc_vars = list(fc)
+            ob_vars = list(ob)
+            if fc_vars:
+                if common_vars:
+                    common_vars = [v for v in common_vars if v in fc_vars]
+                else:
+                    common_vars = fc_vars
+                fcs.append(fc)
+            if ob_vars:
+                ob_name = list(data_group.obs_config)[0] #this needs to be changed if we ever allow more than one obs per data_group
+                ob = ob.expand_dims({'name':[ob_name]})
+                if common_vars:
+                    common_vars = [v for v in common_vars if v in ob_vars]
+                else:
+                    common_vars = ob_vars
+                obs.append(ob)
+        self.forecasts=xr.merge(fcs)[common_vars]
+        self.observations=xr.merge(obs)[common_vars]
         
     
     def compute_scores(self):
         spatial_dimension = self.forecasts.attrs.get('spatial_dimension', 'values')
+
+        fcs = self.forecasts
+        obs = self.observations
+        
+        # handle case with multiple observation types
+        obs_names=list(obs['name'].values)
+        if len(obs_names) > 1:
+            ref_model = self.verification.get('reference_model')
+            assert ref_model in obs_names, 'When more than one set of observations is provided, a reference model needs to be specified.'
+            obs_2_fc = obs.drop_sel(name = ref_model)
+            obs_2_fc = obs_2_fc.rename({'name':'model'})
+            fcs = xr.merge([fcs,obs_2_fc])
+            obs = obs.sel(name = ref_model)
+        
+        obs = obs.drop_vars('name')
+
         verification_type = self.config["verification"].get("type","temporal")
         if verification_type == "temporal":
             self.avg_dims = [spatial_dimension]
@@ -250,16 +249,14 @@ class VerificationSuite():
         saver(self.scores,path)
 
     def plot_scores(self):
-        visualization = self.config.get("visualization",None)
-        if not visualization:
-            pass
-   
-        metrics = visualization.pop("metrics",self.metrics)
-        if metrics == "all":
-            metrics = self.metrics
-        for metric in metrics:
-            print(f"Plotting metric: {metric}.")
-            plot_variables_overview(self.scores, metric, **visualization)
+        visualization = self.visualization
+        if visualization:
+            metrics = visualization.pop("metrics",self.metrics)
+            if metrics == "all":
+                metrics = self.metrics
+            for metric in metrics:
+                print(f"Plotting metric: {metric}.")
+                plot_variables_overview(self.scores, metric, **visualization)
         
             
     def run(self):

@@ -61,9 +61,11 @@ def load(filename,rename_dict=None,valid_time=None):
     else:
         ds_renamed = ds_preprocessed
     if valid_time is None:
-        return ds_renamed
+        ds_final =  ds_renamed
     else:
         valid_time = [time for time in valid_time if time in ds_preprocessed["valid_time"]]
         ds_validtime = ds_renamed.sel(valid_time=valid_time)
-        return ds_validtime
+        ds_final = ds_validtime
+    ds_final.attrs['spatial_dimension'] = 'values'
+    return ds_final
 

@@ -1,6 +1,8 @@
 import numpy as np
 import xarray as xr
-import tqdm
+from datetime import datetime
+import os
+# import tqdm
 
 DROP_VARS = [
     "cos_julian_day",
@@ -49,7 +51,25 @@ def preprocess(dataset,reference_time=None):
     )
     return ds_final
 
-def load(filenames,**kwargs):
+def load(dates, path_fmt, **kwargs):
+    # List all files
+    filenames = []
+    for date in dates:
+        date_dt = date.astype(datetime)
+        path = path_fmt.format(
+        yyyy=date_dt.strftime("%Y"),
+        yy=date_dt.strftime("%y"),
+        mm=date_dt.strftime("%m"),
+        dd=date_dt.strftime("%d"),
+        HH=date_dt.strftime("%H"),
+        MM=date_dt.strftime("%M"),
+        SS=date_dt.strftime("%S"),
+        )
+        if not os.path.isfile(path):
+            print(f"Warning no file for date {date_dt.strftime('%Y%m%d %H:%M')}, skipping file")
+        else:
+            filenames.append(path)
+    #prep metadata
     engine = kwargs.get("engine","h5netcdf")
     combine = kwargs.get("combine","nested")
     parallel = kwargs.get("parallel",True)
@@ -59,6 +79,7 @@ def load(filenames,**kwargs):
         "chunks",
         {"reference_time":5,"time":11, "values": 1142761}
     )
+    # go get them data
     ds = xr.open_mfdataset(
         filenames,
         preprocess=preprocess,
@@ -69,6 +90,7 @@ def load(filenames,**kwargs):
         chunks=chunks,
         parallel=parallel
     )
+    ds.attrs['spatial_dimension'] = 'values'
     return ds
 
     
