@@ -1,4 +1,3 @@
-import yaml
 import argparse
 import numpy as np
 import xarray as xr
@@ -6,19 +5,12 @@ from data import get_loader
 from scores_registry import compute
 from datahandler import get_saver
 from visualization import plot_variables_overview
+from post_processing import post_processor
+from utils import load_yaml
 from datetime import datetime
 import os
-import dask.distributed
+#import dask.distributed
 from dask.distributed import Client, LocalCluster
-
-### yaml files ###
-def write_yaml(x,fn,sort=False):
-    with open (fn,'w') as f:
-        yaml.dump(x,f,sort_keys=False)
-
-def load_yaml(fn):
-    with open(fn,'r') as f:
-        return yaml.safe_load(f)
 
 def prepare_dates(date_cfg):
     dates=[]
@@ -96,6 +88,7 @@ class DataGroup():
 
     def load_observations(self):
         observations = self.obs_config
+        print(observations)
         assert len(observations) == 1, "Loading of multiple observation types per data group not implemented yet"
         (obs_name, kwargs) = next(iter(observations.items()))
         # Get the model specific loader
@@ -154,7 +147,7 @@ class DataGroup():
         self.forecasts, self.observations =  (fcst_reduced, obs_reduced)
 
     def post_process(self):
-        pass
+        self.forecasts, self.observations = post_processor(self.post_processing, self.forecasts, self.observations)
 
     def load(self):
         self.load_forecasts()
@@ -188,7 +181,6 @@ class VerificationSuite():
         data_types=list(fc_config)+list(obs_config)
         
         post_processing_groups=self.config.get('post_processing',[])
-        
         post_processed_data=[]
         data_groups=[]
         
@@ -197,9 +189,11 @@ class VerificationSuite():
             data_groups.append(DataGroup(group_dict,fc_config,obs_config,self.dates,self.variables))
             
         trivial_data=[data for data in data_types if data not in post_processed_data]
-        trivial_group=DataGroup({'data':trivial_data},fc_config,obs_config,self.dates,self.variables)
+        if trivial_data:
+            trivial_group = DataGroup({'data':trivial_data},fc_config,obs_config,self.dates,self.variables)
+            data_groups.append(trivial_group)
         
-        return [trivial_group] + data_groups
+        return data_groups
     
     def load_data(self):
         fcs=[]
@@ -213,9 +207,10 @@ class VerificationSuite():
         
     
     def compute_scores(self):
+        spatial_dimension = self.forecasts.attrs.get('spatial_dimension', 'values')
         verification_type = self.config["verification"].get("type","temporal")
         if verification_type == "temporal":
-            self.avg_dims = ["values"]
+            self.avg_dims = [spatial_dimension]
         elif verification_type == "spatial":
             self.avg_dims = ["reference_time"]
         else:

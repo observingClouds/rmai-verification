@@ -1,15 +1,44 @@
 import cartopy.crs as ccrs
+import pandas as pd
+import numpy as np
+import xarray as xr
 import yaml
 
-with open("grid_mappings.yaml") as stream:
+with open("grids.yaml") as stream:
     try:
-        MAPPINGS = yaml.safe_load(stream)
+        GRIDS = yaml.safe_load(stream)
     except yaml.YAMLError as exc:
         print(exc)
+
+EXTENTS={name: GRIDS[name].pop('extent') for name in GRIDS}
+MAPPINGS=GRIDS
 
 PROJECTIONS = {
     "lcc" : ccrs.LambertConformal,  
 }
+
+def list_to_grid(ds, extent, dim="values"):
+    # If extent is a string, get the specifications from the pre-defined extents
+    if isinstance(extent, str):
+        assert extent in EXTENTS, f"Extent {extent} not supported, please provide a dictionary with the specifications"
+        extent = dict(EXTENTS[extent])
+    nx=extent['nx']
+    ny=extent['ny']
+    assert dim in ds.dims, f"The dimension {dim} you want to grid is not in the dataset."
+    assert ds.sizes[dim] == nx * ny, f"Proposed grid dimensions ({ny}, {nx}) do not match the length of {dim}: {ds.dims[dim]}"
+    
+    if "thinning" in ds.attrs:
+        thinning_factor = ds.attrs["thinning"]
+    else:
+        thinning_factor = 1
+    mindex = pd.MultiIndex.from_product(
+        [np.arange(0,ny)*thinning_factor, np.arange(0,nx)*thinning_factor],
+        names=["y","x"]
+    )
+    
+    mindex_coords = xr.Coordinates.from_pandas_multiindex(
+        mindex, dim)
+    return ds.assign_coords(mindex_coords).unstack()
 
 def get_cartopy_crs(grid_mapping):
         # If native domain is a string, get the specifications from the pre-defined mappings
@@ -66,3 +95,17 @@ def map_grid(dataset, grid_mapping):
     # Add CRS information to the attributes, usefull for regridding an plotting
     dataset.attrs["grid_mapping"] = crs
     return dataset
+
+def to_grid(ds, grid):
+    if isinstance(grid, str):
+        grid = { 'extent' : grid,
+                 'grid_mapping' : grid }
+    ds = list_to_grid(ds, grid['extent'])
+    return map_grid(ds, grid['grid_mapping'])
+        
+
+def interpolate_to_latlon(ds, lon, lat):
+    crs=ds.grid_mapping
+    x, y = crs.transform_point(lon, lat,
+        src_crs=ccrs.PlateCarree() )
+    return ds.interp(x = x, y = y)
