@@ -166,7 +166,11 @@ def plot_temporal_overview(data, **kwargs):
         ci = None
     data = data["mean"]
 
-    filename = f"{data['metric'].values}-overview.pdf"
+    prefix = kwargs.pop('filename_prefix','')
+    if prefix:
+        prefix = prefix + '_'
+
+    filename = f"{prefix}{data['metric'].values}-overview.pdf"
     with PdfPages(filename) as pdf:
         for page in range(total_pages):
             # Determine the subset of data to plot on this page
