@@ -4,16 +4,24 @@ from projections import to_grid, interpolate_to_latlon
 from utils import load_yaml
 
 def post_processor(config, forecasts, observations):
+    print(f"Post processing: {config}")
     if len(config) == 0:
         return (forecasts, observations)
-    data_list=[observations.expand_dims({'model':['TEMP']})]
+    data_list = []
+    if len(observations) > 0:
+        data_list.append(observations.expand_dims({'model':['TEMP']}))
     if 'model' in forecasts.dims:
         data_list.append(forecasts)
     ds=xr.concat(data_list,dim='model')
     for name, kwargs in config.items():
         processor = get_processor(name)
         ds = processor(ds, **kwargs)
-    return (ds.drop_sel(model=['TEMP']), ds.sel(model='TEMP').drop_vars('model'))
+    observations=xr.Dataset()
+    forecasts = ds
+    if 'TEMP' in ds.coords['model'].values:
+        observations = ds.sel(model='TEMP').drop_vars('model')
+        forecasts = ds.drop_sel(model=['TEMP'])
+    return (forecasts, observations)
 
 
 ## PROCESSORS

@@ -46,6 +46,7 @@ def reduce_and_chunck(data, times, vrs):
 class DataGroup():
     def __init__(self, group_dict, fc_config, obs_config, times, variables):
         self.data_names=group_dict.pop('data')
+        print(f"Initializing data group {self.data_names}")
         self.post_processing=group_dict
         self.fc_config={ name : kwargs for name, kwargs in fc_config.items() if name in self.data_names}
         self.obs_config={ name : kwargs for name, kwargs in obs_config.items() if name in self.data_names}
@@ -81,6 +82,8 @@ class DataGroup():
 
             # Get the path
             path = kwargs.pop("path")
+            # Actual loading
+            print(f"Loading observations: {obs_name}")
             self.observations = loader(
                 filename=path,
             #   valid_time=self.forecasts["valid_time"], Not working ATM
@@ -102,7 +105,7 @@ class DataGroup():
         elif len(fc_vars) > 0 and len(obs_vars) > 0:
             fc_vars = [ v for v in fc_vars if v in obs_vars]
             obs_vars = [ v for v in obs_vars if v in fc_vars]
-        
+
         fc_times = { key : value for key, value in self.times.items() if key in ['reference_time', 'lead_time']}
         obs_times = { key : value for key, value in self.times.items() if key in ['valid_time']}
         

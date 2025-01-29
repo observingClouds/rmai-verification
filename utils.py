@@ -28,14 +28,17 @@ def time_range(cfg, delta=False):
     if not delta:
         start = np.datetime64(start)
         end = np.datetime64(end)
+        missing = [np.datetime64(m) for m in cfg.get('missing',[])]
     else:
         start = to_timedelta64(start)
         end = to_timedelta64(end)
+        missing = [to_timedelta64(m) for m in cfg.get('missing',[])]
     
     time = start
     while time <= end:
         times.append(time)
         time += freq
+    times = [time for time in times if not time in missing]
     return times
 
 def ref_lead_to_valid(ref_times,lead_times):
