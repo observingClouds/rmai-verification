@@ -50,7 +50,7 @@ class AnemoiInferenceDataStore(GridDatastore):
         ds = xr.open_dataset(self._files[0])
 
         # Set the dimension names
-        self._dim_names = ["reference_time", "valid_time", "index"]
+        self._dim_names = ("reference_time", "valid_time", "index")
     
         # Set the dimensions
         self._dims = self._set_dims(ds)
@@ -71,10 +71,10 @@ class AnemoiInferenceDataStore(GridDatastore):
             self._vars = list(self._data.keys())
         
         if self._mapping:
-            self._data = add_xy(self._data,self._mapping)
+            self._data = add_xy(self.data,self._mapping)
 
 
-    def _set_dims(self,ds):
+    def _set_dims(self,ds): #FIXME: this no longer holds when we unstack
         n_reference_time = len(self._files)
         n_valid_time = ds.sizes["time"]
         n_index = ds.sizes["values"]
