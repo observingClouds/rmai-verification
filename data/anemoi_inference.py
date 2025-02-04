@@ -30,7 +30,7 @@ MF_KWARGS = {
 }
 
 
-class AnemoiInferenceDataStore(GridDatastore):
+class AnemoiInference(GridDatastore):
 
     def __init__(self,config):
         LOG.info("Initializing AnemoiInferenceDataStore")
@@ -50,7 +50,7 @@ class AnemoiInferenceDataStore(GridDatastore):
         ds = xr.open_dataset(self._files[0])
 
         # Set the dimension names
-        self._dim_names = ("reference_time", "valid_time", "index")
+        self._dim_names = ("reference_time", "valid_time", "grid_index")
     
         # Set the dimensions
         self._dims = self._set_dims(ds)
@@ -115,14 +115,14 @@ class AnemoiInferenceDataStore(GridDatastore):
         ds_coords = ds.assign_coords(
             {
                 "lead_time": ("lead_time", self._lead_times),
-                "index": ("index", np.arange(self._dims[2])),
+                "grid_index": ("grid_index", np.arange(self._dims[2])),
                 "valid_time": (
                     ["reference_time", "lead_time"],
                     ds["reference_time"].data[:,np.newaxis] + \
                         self._lead_times[np.newaxis,:]
                 ),
-                "longitude" : ("index", self._longitudes),
-                "latitude": ("index", self._latitudes),
+                "longitude" : ("grid_index", self._longitudes),
+                "latitude": ("grid_index", self._latitudes),
             }
         )
         ds_coords.attrs["is_forecast"] = True
@@ -171,7 +171,7 @@ def _preprocess(ds):
 
     ds_renamed = ds_reftime.rename_dims(
         {
-            "values":"index",
+            "values":"grid_index",
             "time":"lead_time"
         }
     )

@@ -1,72 +1,148 @@
 import xarray as xr
 import numpy as np
+import logging
 
-def valid_to_lead_time(ds):
-    assert "valid_time" in ds.coords and "reference_time" in ds.coords, "Need a valid_time and reference_time coordinate"
-    ds = ds.assign_coords(
-        lead_time=("time", ds.valid_time.data - ds.reference_time.data)
-    )
-    ds = ds.swap_dims({"time":"lead_time"})
+from .base import PointDatastore
+from utils import load_yaml
 
-    # Make valid_time a 2 dimensional array for easier merging
-    ds = ds.assign_coords(
-        valid_time=(
-            ["reference_time","lead_time"],
-            ds.valid_time.data[np.newaxis,:]
+LOG = logging.getLogger(__name__)
+
+class RmiRePytoolsForecast(PointDatastore):
+
+    def __init__(self,config):
+        LOG.info("Initialzing RmiRePytoolsForecast datastore")
+        self._files = config["files"]
+        self._model = config["model"]
+        self._station_info = load_yaml(config["station_info"])
+        self._vars = config.get("variables",None)
+        self._observation = False
+
+        self._dim_names = ("reference_time","lead_time","point_index")
+        self._data = self._open()
+
+        self._dims = tuple(self._data.sizes.values())
+
+        if self._vars:
+            self.select_vars(self._vars)
+        else:
+            self._vars = list(self._data.keys())
+
+            
+    def dim_names(self):
+        return self._dim_names
+    
+    def dims(self):
+        return self._dims
+
+    def vars(self):
+        return self._vars
+    
+    def data(self):
+        return self._data
+        
+    def observation(self):
+        return self._observation
+
+    def select_variables(self, vars):
+        self._data = self._data[vars]
+        self._vars = vars
+
+    def _open(self):
+        ds = xr.open_dataset(self._files).sel(model=self._model).drop_vars("model")
+        ds_postproc = _postprocess_fcst(ds)
+        aux_coords = dict(
+            code=("point_index", [self._station_info[station]["code"] for station in ds_postproc["station"].values]),
+            longitude=("point_index", [self._station_info[station]["lon"] for station in ds_postproc["station"].values]),
+            latitude=("point_index", [self._station_info[station]["lat"] for station in ds_postproc["station"].values])
         )
+        ds_info = ds_postproc.assign_coords(aux_coords)
+        return ds_info
+
+
+class RmiRePytoolsObservation(PointDatastore):
+
+    def __init__(self,config):
+        LOG.info("Initialzing RmiRePytoolsForecast datastore")
+        self._files = config["files"]
+        self._model = config["model"]
+        self._station_info = load_yaml(config["station_info"])
+        self._vars = config.get("variables",None)
+        self._observation = True
+
+        self._dim_names = ("valid_time","point_index")
+        self._data = self._open()
+
+        self._dims = tuple(self._data.sizes.values())
+
+        if self._vars:
+            self.select_vars(self._vars)
+        else:
+            self._vars = list(self._data.keys())
+
+            
+    def dim_names(self):
+        return self._dim_names
+    
+    def dims(self):
+        return self._dims
+
+    def vars(self):
+        return self._vars
+    
+    def data(self):
+        return self._data
+        
+    def observation(self):
+        return self._observation
+
+    def select_variables(self, vars):
+        self._data = self._data[vars]
+        self._vars = vars
+
+    def _open(self):
+        ds = xr.open_dataset(self._files).sel(model=self._model).drop_vars("model")
+        ds_postproc = _postprocess_obs(ds)
+        aux_coords = dict(
+            code=("point_index", [self._station_info[station]["code"] for station in ds_postproc["station"].values]),
+            longitude=("point_index", [self._station_info[station]["lon"] for station in ds_postproc["station"].values]),
+            latitude=("point_index", [self._station_info[station]["lat"] for station in ds_postproc["station"].values])
+        )
+        ds_info = ds_postproc.assign_coords(aux_coords)
+        return ds_info
+        
+
+def _postprocess_fcst(ds):
+    ds_reftime = ds.assign_coords(
+        reference_time=ds["date"]+ds["run"].astype("timedelta64[h]"),
+        lead_time = ds["lead_time"].astype("timedelta64[h]")
     )
-    return ds
+    ds_stacked = ds_reftime.stack(
+        combined=["date", "run"]
+    ).swap_dims(
+        {"combined":"reference_time"}
+    ).drop_vars(
+        ["combined","date","run"]
+    ).transpose(
+        "reference_time","lead_time","station"
+    ).rename_dims(
+        {"station":"point_index"}
+    )
 
-def _load(filename,
-                    model, runs=None,
-                    rename_dict=None ):
-    ds=xr.load_dataset(filename).sel(model=model)
-    if runs:
-        ds = ds.sel(run=runs)
-    if rename_dict:
-        ds = ds.rename(rename_dict)
+    ds_valid = ds_stacked.assign_coords(
+        valid_time=ds_stacked["reference_time"]+ds_stacked["lead_time"]
+    )
 
-    lts=[np.timedelta64(lt,'h') for lt in  ds.lead_time.values]
-    runs=[np.timedelta64(int(r),'h') for r in  ds.run.values]
-    ds = ds.assign_coords({'lead_time': lts, 'run': runs})
-    ds = ds.stack(reference_time=('date','run'))
-    rts=[rt[0]+rt[1] for rt in ds.reference_time.values]
-    return ds.assign_coords({'reference_time':rts})
+    return ds_valid
 
-def load_obs(filename,
-                    model=[],
-                    valid_times=None,
-                    rename_dict=None,
-                    spatial_dimension='location',
-                    ):
-    ds=_load(filename,model,runs=['00'],rename_dict=rename_dict)
-    # transform to valid time
-    lts=[lt for lt in ds.lead_time.values if lt < np.timedelta64(24,'h')]
-    ds = ds.sel(lead_time=lts)
-    ds = ds.stack(valid_time=('reference_time','lead_time'))
-    vts=[vt[0]+vt[1] for vt in ds.valid_time.values]
-    ds = ds.assign_coords({'valid_time':vts})
-    # Select only needed valid_times
-    if valid_times is not None:
-        ds = ds.sel(valid_time=valid_times)
-    ds.attrs['spatial_dimension']=spatial_dimension
-    return ds
-
-def load_fc(dates, filename,
-                    model=[],
-                    rename_dict=None,
-                    spatial_dimension='location'
-                    ):
-    ds=_load(filename,model,rename_dict=rename_dict)
-    ds = ds.sel(reference_time=dates)
-    ref_times = ds.reference_time.values
-    dss=[]
-    for ref_time in ref_times:
-        ds_0=ds.sel(reference_time=[ref_time])
-        vts=[ref_time+lt for lt in ds.lead_time.values]
-        ds_0 = ds_0.assign_coords({'valid_time':vts})
-        ds_0=valid_to_lead_time(ds_0)
-        dss.append(ds_0)
-    ds=xr.concat(dss,dim="reference_time")
-    ds.attrs['spatial_dimension']=spatial_dimension
-    return ds
+def _postprocess_obs(ds):
+    ds_valid = _postprocess_fcst(ds)
+    ds_dropped = ds_valid.stack(
+        combined=["reference_time", "lead_time"]
+    ).swap_dims(
+        {"combined":"valid_time"}
+    ).drop_vars(
+        ["combined","reference_time","lead_time"]
+    ).drop_duplicates(
+        dim="valid_time"
+    )
+    return ds_dropped

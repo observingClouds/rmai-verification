@@ -30,10 +30,10 @@ COORDS = dict(
 # ]
 
 
-class AnemoiDatasetsDataStore(GridDatastore):
+class AnemoiDatasets(GridDatastore):
 
     def __init__(self,config):
-        LOG.info("Initializing AnemoiDatasetStore")
+        LOG.info("Initializing AnemoiDataset datastore")
         self._files = config["files"]
         self._vars = config.get("variables", None)
         self._mapping = config.get("mapping", None)
@@ -41,14 +41,14 @@ class AnemoiDatasetsDataStore(GridDatastore):
         self._observation = True
 
         # Set the dimension names        
-        self._dim_names = ("valid_time","index")
+        self._dim_names = ("valid_time","grid_index")
 
         # Open the dataset
         self._data = self._open()
 
         # Set the dimensions
         self._dims = (self._data.sizes["valid_time"],
-                      self._data.sizes["index"] )
+                      self._data.sizes["grid_index"] )
         
         if self._vars:
             self.select_vars(self._vars)
@@ -131,6 +131,6 @@ def _postprocess(dataset):
     ).swap_dims(
         {"time":"valid_time"}
     ).rename(
-        {"cell":"index"}
+        {"cell":"grid_index"}
     )
     return ds_pruned

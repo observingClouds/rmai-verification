@@ -23,7 +23,7 @@ def create_cartopy_crs(projection,projection_kws):
     return crs
 
 
-def create_multiindex(ds, x="x", y="y", dim_to_multiindex="index", **kwargs):
+def create_multiindex(ds, x="x", y="y", dim_to_multiindex="grid_index", **kwargs):
     nx = kwargs.get("nx")
     ny = kwargs.get("ny")
     lon_ll, lat_ll = kwargs.get("lower_left")
@@ -84,7 +84,7 @@ def add_xy(ds,grid):
     LOG.info("Calculating x and y values from the extent")
     multi_index = create_multiindex(ds_new,**grid_kwargs) 
     multi_coordinates = xr.Coordinates.from_pandas_multiindex(
-        multi_index, "index")
+        multi_index, "grid_index")
     ds_xy = ds_new.assign_coords(multi_coordinates)
     return ds_xy
 
