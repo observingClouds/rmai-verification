@@ -3,7 +3,7 @@ import numpy as np
 import logging
 
 from .base import PointDatastore
-from utils import load_yaml
+from utils.utils import load_yaml
 
 LOG = logging.getLogger(__name__)
 
@@ -56,7 +56,8 @@ class RmiRePytoolsForecast(PointDatastore):
             latitude=("point_index", [self._station_info[station]["lat"] for station in ds_postproc["station"].values])
         )
         ds_info = ds_postproc.assign_coords(aux_coords)
-        return ds_info
+        ds_index = ds_info.set_xindex("code")
+        return ds_index
 
 
 class RmiRePytoolsObservation(PointDatastore):
@@ -108,7 +109,8 @@ class RmiRePytoolsObservation(PointDatastore):
             latitude=("point_index", [self._station_info[station]["lat"] for station in ds_postproc["station"].values])
         )
         ds_info = ds_postproc.assign_coords(aux_coords)
-        return ds_info
+        ds_index = ds_info.set_xindex("code")
+        return ds_index
         
 
 def _postprocess_fcst(ds):

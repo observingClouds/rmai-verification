@@ -1,20 +1,22 @@
-from data import anemoi_inference, anemoi_datasets, rmi_re_pytools
+from data.anemoi_datasets import AnemoiDatasets
+from data.anemoi_inference import AnemoiInference
+from data.rmi_re_pytools import RmiRePytoolsForecast, RmiRePytoolsObservation
 
 
-_loaders = {
-    "anemoi-inference": anemoi_inference.load,
-    "anemoi-datasets" : anemoi_datasets.load,
-    "rmi-re-pytools-fc": rmi_re_pytools.load_fc,
-    "rmi-re-pytools-obs": rmi_re_pytools.load_obs
+_datastores = {
+    "anemoi-inference": AnemoiInference,
+    "anemoi-datasets" : AnemoiDatasets,
+    "rmi-re-pytools-fc": RmiRePytoolsForecast,
+    "rmi-re-pytools-obs": RmiRePytoolsObservation
 }
 
-def get_loader(name):
+def get_datastore(name):
     try:
-        return _loaders[name]
+        return _datastores[name]
     except KeyError:
         raise ValueError(
             f"Unknown loader: {name}\n"
             + "The available loaders are:"
-            + str(list(_loaders.keys()))
+            + str(list(_datastores.keys()))
         ) 
 
