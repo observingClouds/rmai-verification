@@ -56,7 +56,7 @@ class AnemoiDatasets(GridDatastore):
             self._vars = self._data["variable"].values
 
         if self._mapping:
-            self._data = add_xy(self.data,self._mapping)
+            self._data = add_xy(self._data,self._mapping)
 
         
     def dim_names(self):

@@ -71,7 +71,7 @@ class AnemoiInference(GridDatastore):
             self._vars = list(self._data.keys())
         
         if self._mapping:
-            self._data = add_xy(self.data,self._mapping)
+            self._data = add_xy(self._data,self._mapping)
 
 
     def _set_dims(self,ds): #FIXME: this no longer holds when we unstack

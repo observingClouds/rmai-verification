@@ -1,1 +1,1 @@
-from .interface import get_loader
+from .interface import get_datastore
