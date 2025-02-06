@@ -1,0 +1,60 @@
+dates:
+  start: 2020-01-01 12:00:00
+  end: 2020-01-02 00:00:00
+  frequency: 12h
+
+datastores:
+  anemoi-lam:
+    type: anemoi-inference
+    path: /scratch/project_465001235/vandenbl/anemoi/experiments/inference/lam_512/outputs/{yyyy}{mm}{dd}{HH}.nc
+    mapping: cerra
+
+  # cerra:
+  #   type: anemoi-datasets
+  #   path: /scratch/project_465001235/datasets/cerra-rr-an-oper-0001-mars-5p5km-1984-2020-3h-v2-rmi.zarr
+  #   mapping: cerra
+  
+  alaro-4km:
+    type: rmi-re-pytools-fc
+    path: /scratch/project_465001235/datasets/INDRA_2020_v2.nc
+    model: ALO4
+    station_info: /scratch/project_465001235/vanginde/rmai-verification/configs/INDRA.yaml
+
+  IFS-HRES:
+    type: rmi-re-pytools-fc
+    path: /scratch/project_465001235/datasets/INDRA_2020_v2.nc
+    model: ECDET
+    station_info: /scratch/project_465001235/vanginde/rmai-verification/configs/INDRA.yaml
+    
+  SYNOP:
+    type: rmi-re-pytools-obs
+    path: /scratch/project_465001235/datasets/INDRA_2020_v2.nc
+    model: OBS
+    station_info: /scratch/project_465001235/vanginde/rmai-verification/configs/INDRA.yaml
+
+transformations:
+  rename:
+    2t: [2t_2, T2M ]
+    10u: [10u_10, U10M]
+    10v: [10v_10, V10M]
+    10s: [S10M, 10s_10]
+    msl: [msl_0, MLSP]
+  uv_to_speed:
+    datastores:
+      - anemoi-lam
+    u: 10u
+    v: 10v
+    speed: 10s
+
+verification:
+  reference_datastore: SYNOP    
+  variables : [2t, 10s]
+  clusters:
+    spatial:
+      scores:
+        - mse
+        - bias
+      avg_dims: point_index
+      output_path : ANEMOIvALO4vIFSHRES.nc
+  
+    
