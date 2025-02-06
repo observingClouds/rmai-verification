@@ -64,6 +64,9 @@ class BaseDataStore(abc.ABC):
             None
         """
         pass
+    
+    def transform(self,transformation):
+        self._data = transformation.execute(self._data)
 
     
 class GridDatastore(BaseDataStore):
@@ -86,7 +89,23 @@ class GridDatastore(BaseDataStore):
     #     pass
 
 class PointDatastore(BaseDataStore):
-    pass
+    @abc.abstractmethod
+    def longitudes(self):
+        """Return the longitudes of the points
+        
+        Returns: 
+            List: list with longitudes of the points in the datastore
+        """
+        pass
+
+    @abc.abstractmethod
+    def latitudes(self):
+        """Return the latitudes of the points
+        
+        Returns: 
+            List: list with latitudes of the points in the datastore
+        """
+        pass
 
 
     # @abc.abstractmethod

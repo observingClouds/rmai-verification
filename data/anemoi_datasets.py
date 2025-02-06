@@ -82,6 +82,9 @@ class AnemoiDatasets(GridDatastore):
         self._data = self._data.sel(variable=vars)
         self._vars = vars
 
+    def select_valid_times(self,valid_times):
+        self._data = self._data.sel(valid_time=valid_times)
+
     def unstack(self,mapping=None):
         if self._unstacked:
             pass

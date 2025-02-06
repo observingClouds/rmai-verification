@@ -27,6 +27,8 @@ class RmiRePytoolsForecast(PointDatastore):
         else:
             self._vars = list(self._data.keys())
 
+        self._longitudes = self._data["longitude"].values
+        self._latitudes = self._data["latitude"].values
             
     def dim_names(self):
         return self._dim_names
@@ -43,9 +45,18 @@ class RmiRePytoolsForecast(PointDatastore):
     def observation(self):
         return self._observation
 
+    def longitudes(self):
+        return self._longitudes
+
+    def latitudes(self):
+        return self._latitudes
+
     def select_variables(self, vars):
         self._data = self._data[vars]
         self._vars = vars
+
+    def select_reference_times(self,reference_times):
+        self._data = self._data.sel(reference_time=reference_times)
 
     def _open(self):
         ds = xr.open_dataset(self._files).sel(model=self._model).drop_vars("model")
@@ -80,6 +91,8 @@ class RmiRePytoolsObservation(PointDatastore):
         else:
             self._vars = list(self._data.keys())
 
+        self._longitudes = self._data["longitude"].values
+        self._latitudes = self._data["latitude"].values
             
     def dim_names(self):
         return self._dim_names
@@ -96,9 +109,18 @@ class RmiRePytoolsObservation(PointDatastore):
     def observation(self):
         return self._observation
 
+    def longitudes(self):
+        return self._longitudes
+
+    def latitudes(self):
+        return self._latitudes
+
     def select_variables(self, vars):
         self._data = self._data[vars]
         self._vars = vars
+
+    def select_valid_times(self,valid_times):
+        self._data = self._data.sel(valid_time=valid_times)
 
     def _open(self):
         ds = xr.open_dataset(self._files).sel(model=self._model).drop_vars("model")

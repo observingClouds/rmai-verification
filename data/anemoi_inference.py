@@ -101,6 +101,9 @@ class AnemoiInference(GridDatastore):
     def observation(self):
         return self._observation
     
+    # def transform(self,transformation):
+    #     self._data = transformation.execute(self._data)
+    
     def _open(self):
         ds = xr.open_mfdataset(
             self._files,
@@ -132,6 +135,9 @@ class AnemoiInference(GridDatastore):
     def select_variables(self,vars):
         self._data = self._data[vars]
         self._vars = vars
+    
+    def select_reference_times(self,reference_times):
+        self._data = self._data.sel(reference_time=reference_times)
 
     def unstack(self,mapping=None):
         if self._unstacked:
