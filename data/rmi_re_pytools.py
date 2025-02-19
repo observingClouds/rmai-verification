@@ -1,63 +1,37 @@
 import xarray as xr
 import numpy as np
 import logging
+from typing import List
 
-from .base import PointDatastore
+from .base import PointDataStore, FcstDataStore, ObsDataStore
 from utils.utils import load_yaml
 
 LOG = logging.getLogger(__name__)
 
-class RmiRePytoolsForecast(PointDatastore):
+class RmiRePytoolsForecast(PointDataStore, FcstDataStore):
 
-    def __init__(self,config):
+    def __init__(self, files : str, model : str, station_info : str, variables : List[str] = None):
         LOG.info("Initialzing RmiRePytoolsForecast datastore")
-        self._files = config["files"]
-        self._model = config["model"]
-        self._station_info = load_yaml(config["station_info"])
-        self._vars = config.get("variables",None)
-        self._observation = False
-
-        self._dim_names = ("reference_time","lead_time","point_index")
+        self._files = files
+        self._model = model
+        self._station_info = load_yaml(station_info)
         self._data = self._open()
 
-        self._dims = tuple(self._data.sizes.values())
-
-        if self._vars:
+        if variables:
             self.select_vars(self._vars)
-        else:
-            self._vars = list(self._data.keys())
-
-        self._longitudes = self._data["longitude"].values
-        self._latitudes = self._data["latitude"].values
-            
-    def dim_names(self):
-        return self._dim_names
-    
-    def dims(self):
-        return self._dims
-
-    def vars(self):
-        return self._vars
-    
-    def data(self):
-        return self._data
         
-    def observation(self):
-        return self._observation
-
-    def longitudes(self):
-        return self._longitudes
-
-    def latitudes(self):
-        return self._latitudes
-
     def select_variables(self, vars):
-        self._data = self._data[vars]
-        self._vars = vars
+        new_data = self._data[vars]
+        self._data = new_data
 
     def select_reference_times(self,reference_times):
-        self._data = self._data.sel(reference_time=reference_times)
+        new_data = self._data.sel(reference_time=reference_times)
+        self._data = new_data
 
+    def select_lead_times(self,lead_times):
+        new_data = self._data.sel(lead_time=lead_times)
+        self._data = new_data
+    
     def _open(self):
         ds = xr.open_dataset(self._files).sel(model=self._model).drop_vars("model")
         ds_postproc = _postprocess_fcst(ds)
@@ -67,60 +41,30 @@ class RmiRePytoolsForecast(PointDatastore):
             latitude=("point_index", [self._station_info[station]["lat"] for station in ds_postproc["station"].values])
         )
         ds_info = ds_postproc.assign_coords(aux_coords)
-        ds_index = ds_info.set_xindex("code")
+        ds_index = ds_info.swap_dims({"point_index":"code"})
         return ds_index
 
 
-class RmiRePytoolsObservation(PointDatastore):
+class RmiRePytoolsObservation(PointDataStore, ObsDataStore):
 
-    def __init__(self,config):
-        LOG.info("Initialzing RmiRePytoolsForecast datastore")
-        self._files = config["files"]
-        self._model = config["model"]
-        self._station_info = load_yaml(config["station_info"])
-        self._vars = config.get("variables",None)
-        self._observation = True
-
-        self._dim_names = ("valid_time","point_index")
+    def __init__(self,files : str, model : str, station_info : str, variables : List[str] = None):
+        LOG.info("Initialzing RmiRePytoolsObservation datastore")
+        self._files = files
+        self._model = model
+        self._station_info = load_yaml(station_info)
+        
         self._data = self._open()
 
-        self._dims = tuple(self._data.sizes.values())
-
-        if self._vars:
+        if variables:
             self.select_vars(self._vars)
-        else:
-            self._vars = list(self._data.keys())
-
-        self._longitudes = self._data["longitude"].values
-        self._latitudes = self._data["latitude"].values
-            
-    def dim_names(self):
-        return self._dim_names
-    
-    def dims(self):
-        return self._dims
-
-    def vars(self):
-        return self._vars
-    
-    def data(self):
-        return self._data
         
-    def observation(self):
-        return self._observation
-
-    def longitudes(self):
-        return self._longitudes
-
-    def latitudes(self):
-        return self._latitudes
-
     def select_variables(self, vars):
-        self._data = self._data[vars]
-        self._vars = vars
+        new_data = self._data[vars]
+        self._data = new_data
 
     def select_valid_times(self,valid_times):
-        self._data = self._data.sel(valid_time=valid_times)
+        new_data = self._data.sel(valid_time=valid_times)
+        self._data = new_data
 
     def _open(self):
         ds = xr.open_dataset(self._files).sel(model=self._model).drop_vars("model")
@@ -131,7 +75,7 @@ class RmiRePytoolsObservation(PointDatastore):
             latitude=("point_index", [self._station_info[station]["lat"] for station in ds_postproc["station"].values])
         )
         ds_info = ds_postproc.assign_coords(aux_coords)
-        ds_index = ds_info.set_xindex("code")
+        ds_index = ds_info.swap_dims({"point_index":"code"})
         return ds_index
         
 

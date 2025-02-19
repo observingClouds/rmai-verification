@@ -1,60 +1,77 @@
 import abc
+import xarray as xr
+import numpy.typing as npt
+from typing import Dict, List, Any
+
 
 class BaseDataStore(abc.ABC):
     """
     Base class
     """
     @property
-    @abc.abstractmethod
-    def dim_names(self):
-        """Get the dimension names of the DataStore
-
-        Returns:
-            List[str]: The names of the variables
-        """
-        pass
-    
-    @property
-    @abc.abstractmethod
-    def dims(self):
-        """Get the dimensions of the DataStore
+    def dims(self) -> Dict[str, int]:
+        """Get the names and size of the dimensions of the DataStore
         
         Returns:
-            tuple: the dimensions of the data
+            Dict: the dimension names and sisze of the data
         """
-        pass
+        return dict(self._data.sizes)
 
     @property
-    @abc.abstractmethod
-    def vars(self):
+    def vars(self) -> List[str]:
         """Returns the variables in the datastore
         
         Returns:
             List: Variables in the datastore
         """
-        pass
+        return list(self._data.keys())
+    
+    @property
+    def longitudes(self) -> npt.NDArray:
+        """Returns the longitudes of the datastore
+        
+        Returns
+            ndarray: 
+        """
+        return self._data["longitude"].values
 
     @property
-    @abc.abstractmethod
-    def observation(self):
-        """Returns True if observations datastore
+    def latitudes(self) -> npt.NDArray:
+        """Returns the latitudes of the datastore
         
-        Observation datastores only contain valid_times,
-        while forecast (also) contain reference_time and lead_times.
+        Returns
+            ndarray: 
+        """
+        return self._data["latitude"].values
+
+    @property
+    def is_observation(self) -> bool:
+        """Returns True if the datastore contains observations, 
+        False if it contains forecasts
 
         Returns:
-            Boolean: True if datastore contains observations
+            bool: True for observation datastore, False for forecast datastore
         """
+        return self._is_observation
 
     @property
-    @abc.abstractmethod
-    def data(self):
+    def is_point(self) -> bool:
+        """Returns True if the datastore contains point-based data, 
+        False if it contains grid-based data
+
+        Returns:
+            bool: True for point-based datastore, False for grid-based datastore
+        """
+        return self._is_point
+
+    @property
+    def data(self) -> xr.Dataset | xr.DataArray:
         """Returns the xr.Dataset or xr.DataArray in a prediscribed format
 
         Returns:
             xr.Dataset or xr.DataArray
         """
-        pass
+        return self._data
 
     @abc.abstractmethod
     def select_variables(self,variables):
@@ -66,10 +83,24 @@ class BaseDataStore(abc.ABC):
         pass
     
     def transform(self,transformation):
-        self._data = transformation.execute(self._data)
+        new_data = transformation.execute(self._data)
+        self._data = new_data
 
     
-class GridDatastore(BaseDataStore):
+class GridDataStore(BaseDataStore):
+
+    _is_point: bool = False
+
+    @property
+    def stacked(self) -> bool:
+        """Returns true if the data is stacked (1-D)
+        
+        Returns:
+            Boolean: True if data in the GridDataStore is stacked (1-D)
+        """
+        return self._stacked
+    
+    
     @abc.abstractmethod
     def unstack(self):
         """Unstack the 1D spatial dimension to 2D
@@ -88,28 +119,48 @@ class GridDatastore(BaseDataStore):
     #     """
     #     pass
 
-class PointDatastore(BaseDataStore):
+class PointDataStore(BaseDataStore):
+
+    _is_point: bool = True
+
+
+class ObsDataStore(BaseDataStore):
+    _is_observation: bool = True
+
+    @property
+    def valid_times(self):
+        return self._data["valid_time"].values
+
     @abc.abstractmethod
-    def longitudes(self):
-        """Return the longitudes of the points
-        
-        Returns: 
-            List: list with longitudes of the points in the datastore
+    def select_valid_times(self,valid_times: List | xr.DataArray):
+        """Subsets the data in the datastore to only contain 
+        the selected valid_times
+
+        Returns:
+            None
+        """
+        pass
+
+class FcstDataStore(BaseDataStore):
+    _is_observation: bool = False
+
+    @abc.abstractmethod
+    def select_reference_times(self,reference_times: List | xr.DataArray):
+        """Subsets the data in the datastore to only contain 
+        the selected reference times
+
+        Returns:
+            None
         """
         pass
 
     @abc.abstractmethod
-    def latitudes(self):
-        """Return the latitudes of the points
-        
-        Returns: 
-            List: list with latitudes of the points in the datastore
+    def select_lead_times(self,lead_times: List | xr.DataArray):
+        """Subsets the data in the datastore to only contain 
+        the selected lead times
+
+        Returns:
+            None
         """
         pass
-
-
-    # @abc.abstractmethod
-    # def load(self):
-    #     """(Lazy) load the data and return xr.Dataset or xr.DataArray"""
-    #     pass
     

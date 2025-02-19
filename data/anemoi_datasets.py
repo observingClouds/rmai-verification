@@ -2,9 +2,11 @@ import numpy as np
 import xarray as xr
 import logging
 
-from .base import GridDatastore
+from .base import GridDataStore, ObsDataStore
 from grids.grid_mapping import add_xy
 from data.anemoi_inference import DROP_VARS
+from transformations.rename import Renamer
+from transformations.uv_to_speed import UVToSpeed
 
 
 LOG = logging.getLogger(__name__)
@@ -30,63 +32,50 @@ COORDS = dict(
 # ]
 
 
-class AnemoiDatasets(GridDatastore):
-
-    def __init__(self,config):
+class AnemoiDatasets(GridDataStore, ObsDataStore):
+    def __init__(self, files, variables=None, mapping=None):
         LOG.info("Initializing AnemoiDataset datastore")
-        self._files = config["files"]
-        self._vars = config.get("variables", None)
-        self._mapping = config.get("mapping", None)
-        self._unstacked = False
-        self._observation = True
-
-        # Set the dimension names        
-        self._dim_names = ("valid_time","grid_index")
+        self._files = files
+        self._mapping = mapping
+        self._stacked = True
 
         # Open the dataset
         self._data = self._open()
 
-        # Set the dimensions
-        self._dims = (self._data.sizes["valid_time"],
-                      self._data.sizes["grid_index"] )
-        
-        if self._vars:
-            self.select_vars(self._vars)
-        else:
-            self._vars = self._data["variable"].values
+        if variables:
+            self.select_vars(variables)
 
         if self._mapping:
             self._data = add_xy(self._data,self._mapping)
 
-        
-    def dim_names(self):
-        return self._dim_names
-    
+    @property
     def dims(self):
-        return self._dims
-
+        dims = super().dims.copy()
+        _ = dims.pop("variable",None)
+        return dims
+        
+    @property
     def vars(self):
-        return self._vars
-    
+        return self._data["variable"].values
+
+
+    @property
     def data(self):
+        LOG.info("Transforming anemoi-datasets xr.DataArray to xr.Dataset, this might take some time.")
         data = self._data.to_dataset(dim="variable")
         return data
         
-    def unstacked(self):
-        return self._unstacked
-    
-    def observation(self):
-        return self._observation
-
     def select_variables(self, vars):
-        self._data = self._data.sel(variable=vars)
+        new_data = self._data.sel(variable=vars)
+        self._data = new_data
         self._vars = vars
 
     def select_valid_times(self,valid_times):
-        self._data = self._data.sel(valid_time=valid_times)
+        new_data = self._data.sel(valid_time=valid_times)
+        self._data = new_data
 
     def unstack(self,mapping=None):
-        if self._unstacked:
+        if not self._stacked:
             pass
 
         if mapping != None:
@@ -99,14 +88,45 @@ class AnemoiDatasets(GridDatastore):
             LOG.error("No grid mapping found!")
             raise ValueError
         ds_unstacked = self._data.unstack()
-        ds_transposed = ds_unstacked.transpose(
-            "valid_time",
-            "x",
-            "y",
-            "variable"
-        )
+
+        #FIXME: in some edge-cases an anemoi-datasets can have ref and leadtime
+        if "valid_time" in self._data.dims:
+            dims = ["valid_time", "x", "y"]
+        else:
+            dims = ["reference_time", "lead_time", "x", "y"]
+
+        ds_transposed = ds_unstacked.transpose(*dims,...)
         self._data = ds_transposed
         self._unstacked = True
+
+    def transform(self, transformation):
+        match transformation:
+            case Renamer():
+                LOG.debug("Using AnemoiDatasets specific Renamer transformation")
+                new_names = []
+                for variable in self._data["variable"].values:
+                    name = None
+                    for new_name, old_names in transformation.rename_dict.items():
+                        if variable in old_names:
+                            name = new_name
+                    if name == None:
+                        name = variable.astype(str)
+                    new_names.append(name)
+                new_data = self._data.assign_coords(
+                    {
+                        "variable": ("variable", new_names)
+                    }
+                )
+                self._data = new_data
+            case UVToSpeed():
+                LOG.debug("Using AnemoiDatasets specific UVToSpeed transformation")
+                speed = np.sqrt(self._data.sel(variable=transformation.u_wind)**2 + self._data.sel(variable=transformation.v_wind)**2)
+                speed = speed.expand_dims("variable").assign_coords(variable=[transformation.wind_speed])
+                new_data = xr.concat([speed,self._data], dim="variable")
+                self._data = new_data
+
+            case _:
+                super().transform(transformation)
 
     def _open(self):
         ds = xr.open_zarr(self._files,consolidated=False,chunks="auto")
