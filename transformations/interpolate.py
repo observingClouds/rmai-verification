@@ -1,9 +1,8 @@
 import xarray as xr
 import cartopy.crs as ccrs
 
-DEFAULTS = dict(
+DEFAULTS = dict()
 
-)
 
 class Interpolator():
     def __init__(self,output_ds,interp_kwargs):
@@ -20,12 +19,12 @@ class Interpolator():
         )
         x = xr.DataArray(
             xyz[:,0],
-            dims="point_index"
+            dims="code"
         ).assign_coords(code=self.output_ds["code"])
         
         y = xr.DataArray(
             xyz[:,1],
-            dims="point_index"
+            dims="code"
         ).assign_coords(code=self.output_ds["code"])
         output_ds = input_ds.interp(
             x=x,
