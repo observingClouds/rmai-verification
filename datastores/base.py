@@ -45,6 +45,17 @@ class BaseDataStore(abc.ABC):
         return self._data["latitude"].values
 
     @property
+    def valid_times(self) -> xr.DataArray:
+        """Returns the valid times of the datastore
+        
+        Returns
+            xr.DataArray: for ObsDatastore a 1D data-array, 
+            for FcstDataStore a 2D data-array 
+        """
+        return self._data["valid_time"]
+
+
+    @property
     def is_observation(self) -> bool:
         """Returns True if the datastore contains observations, 
         False if it contains forecasts
@@ -92,7 +103,7 @@ class GridDataStore(BaseDataStore):
     _is_point: bool = False
 
     @property
-    def stacked(self) -> bool:
+    def is_stacked(self) -> bool:
         """Returns true if the data is stacked (1-D)
         
         Returns:
@@ -120,7 +131,6 @@ class GridDataStore(BaseDataStore):
     #     pass
 
 class PointDataStore(BaseDataStore):
-
     _is_point: bool = True
 
 

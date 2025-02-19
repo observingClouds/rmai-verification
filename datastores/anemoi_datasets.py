@@ -4,7 +4,7 @@ import logging
 
 from .base import GridDataStore, ObsDataStore
 from grids.grid_mapping import add_xy
-from data.anemoi_inference import DROP_VARS
+from datastores.anemoi_inference import DROP_VARS
 from transformations.rename import Renamer
 from transformations.uv_to_speed import UVToSpeed
 
@@ -122,7 +122,7 @@ class AnemoiDatasets(GridDataStore, ObsDataStore):
                 LOG.debug("Using AnemoiDatasets specific UVToSpeed transformation")
                 speed = np.sqrt(self._data.sel(variable=transformation.u_wind)**2 + self._data.sel(variable=transformation.v_wind)**2)
                 speed = speed.expand_dims("variable").assign_coords(variable=[transformation.wind_speed])
-                new_data = xr.concat([speed,self._data], dim="variable")
+                new_data = xr.concat([speed,self._data], dim="variable",combine_attrs="drop_conflicts")
                 self._data = new_data
 
             case _:
