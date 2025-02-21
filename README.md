@@ -42,7 +42,7 @@ visualization:
   ...
 ```
 📅 **dates**  
-The `dates` section sets the main forecast run-dates and there frequency that will verified.  
+The `dates` section sets the main forecast run-dates that will verified.  
 example:
 ```yaml
 dates:
