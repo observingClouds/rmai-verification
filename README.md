@@ -88,25 +88,25 @@ Transformations are applied in the order they are specified.
 example
 ```yaml
 transformations:
-rename:
-  rename_dict:
-    2t: [2t_2, T2M ]
-    10u: [10u_10, U10M]
-    10v: [10v_10, V10M]
-    10s: [S10M, 10s_10]
-    msl: [msl_0, MLSP]
-uv_to_speed:
-  datastores:
-    - low_resolution_model
-    - high_resolution_model
-  u: 10u
-  v: 10v
-  speed: 10s
-kelvin_to_celcius:
-  datastores:
-    - low_resolution_model
-    - high_resolution_model
-  fields: [2t]
+  rename:
+    rename_dict:
+      2t: [2t_2, T2M ]
+      10u: [10u_10, U10M]
+      10v: [10v_10, V10M]
+      10s: [S10M, 10s_10]
+      msl: [msl_0, MLSP]
+  uv_to_speed:
+    datastores:
+      - low_resolution_model
+      - high_resolution_model
+    u: 10u
+    v: 10v
+    speed: 10s
+  kelvin_to_celcius:
+    datastores:
+      - low_resolution_model
+      - high_resolution_model
+    fields: [2t]
 ```
 
 ✔️ **verification**  
@@ -123,6 +123,7 @@ A cluster is defined by a name and a dictionary specifying:
 This allows for different (e.g. spatial vs temporal) verification-types to be run using one pipeline.
 example:
 ```yaml
+verification:
   reference_datastore: observations    
   variables : [2t, 10s]
   clusters:
