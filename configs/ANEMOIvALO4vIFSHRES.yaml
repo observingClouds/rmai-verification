@@ -1,12 +1,12 @@
 dates:
-  start: 2020-01-02 00:00:00
-  end: 2020-01-04 00:00:00
+  start: 2020-01-01 12:00:00
+  end: 2020-12-27 12:00:00
   frequency: 12h
 
 datastores:
-  stretched-512:
+  stretched-512-final:
     type: anemoi-inference
-    path: /scratch/project_465001235/vandenbl/anemoi/experiments/inference/stretched_512/outputs/{yyyy}{mm}{dd}{HH}.nc
+    path: /scratch/project_465001235/vandenbl/anemoi/experiments/inference/stretched_512_final/outputs/{yyyy}{mm}{dd}{HH}.nc
     mapping: cerra
 
   cerra:
@@ -42,14 +42,14 @@ transformations:
       msl: [msl_0, MLSP]
   uv_to_speed:
     datastores:
-      - stretched-512
+      - stretched-512-final
       - cerra
     u: 10u
     v: 10v
     speed: 10s
   kelvin_to_celcius:
     datastores:
-      - stretched-512
+      - stretched-512-final
       - cerra
     fields: [2t]
 
