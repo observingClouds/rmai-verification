@@ -1,8 +1,6 @@
 import argparse
-from utils.files import yaml_file_type
-from dask.distributed import Client, LocalCluster
-from verification.verification import Verification
 import logging
+from utils.files import yaml_file_type
 
 # Define log format
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
@@ -21,34 +19,38 @@ logging.basicConfig(
 
 LOG = logging.getLogger(__name__)
 
+
+parser = argparse.ArgumentParser(
+    description="Run a verification pipeline based on a config-file"
+)
+
+parser.add_argument(
+    "-c,","--config",
+    required=True,
+    type=yaml_file_type,
+    help="Path to the YAML configuration file"
+)
+
+parser.add_argument(
+    "--n_workers",
+    default=4,
+    type=int,
+    help="Number of dask workers"
+)
+
+parser.add_argument(
+    "--threads_per_worker",
+    default=1,
+    type=int,
+    help="Number of threads per dask worker"
+)
+
+args = parser.parse_args()
+
+from dask.distributed import Client, LocalCluster
+from verification.verification import Verification
+
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(
-        description="Run a verification pipeline based on a config-file"
-    )
-
-    parser.add_argument(
-        "-c,","--config",
-        required=True,
-        type=yaml_file_type,
-        help="Path to the YAML configuration file"
-    )
-
-    parser.add_argument(
-        "--n_workers",
-        default=4,
-        type=int,
-        help="Number of dask workers"
-    )
-
-    parser.add_argument(
-        "--threads_per_worker",
-        default=1,
-        type=int,
-        help="Number of threads per dask worker"
-    )
-
-    args = parser.parse_args()
 
     cluster = LocalCluster(
         n_workers=args.n_workers,
