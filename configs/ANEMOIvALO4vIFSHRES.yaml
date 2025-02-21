@@ -1,18 +1,18 @@
 dates:
-  start: 2020-01-01 12:00:00
-  end: 2020-01-02 00:00:00
+  start: 2020-01-02 00:00:00
+  end: 2020-01-04 00:00:00
   frequency: 12h
 
 datastores:
-  anemoi-lam:
+  stretched-512:
     type: anemoi-inference
-    path: /scratch/project_465001235/vandenbl/anemoi/experiments/inference/lam_512/outputs/{yyyy}{mm}{dd}{HH}.nc
+    path: /scratch/project_465001235/vandenbl/anemoi/experiments/inference/stretched_512/outputs/{yyyy}{mm}{dd}{HH}.nc
     mapping: cerra
 
-  # cerra:
-  #   type: anemoi-datasets
-  #   path: /scratch/project_465001235/datasets/cerra-rr-an-oper-0001-mars-5p5km-1984-2020-3h-v2-rmi.zarr
-  #   mapping: cerra
+  cerra:
+    type: anemoi-datasets
+    path: /scratch/project_465001235/datasets/cerra-rr-an-oper-0001-mars-5p5km-1984-2020-3h-v2-rmi.zarr
+    mapping: cerra
   
   alaro-4km:
     type: rmi-re-pytools-fc
@@ -34,27 +34,50 @@ datastores:
 
 transformations:
   rename:
-    2t: [2t_2, T2M ]
-    10u: [10u_10, U10M]
-    10v: [10v_10, V10M]
-    10s: [S10M, 10s_10]
-    msl: [msl_0, MLSP]
+    rename_dict:
+      2t: [2t_2, T2M ]
+      10u: [10u_10, U10M]
+      10v: [10v_10, V10M]
+      10s: [S10M, 10s_10]
+      msl: [msl_0, MLSP]
   uv_to_speed:
     datastores:
-      - anemoi-lam
+      - stretched-512
+      - cerra
     u: 10u
     v: 10v
     speed: 10s
+  kelvin_to_celcius:
+    datastores:
+      - stretched-512
+      - cerra
+    fields: [2t]
 
 verification:
   reference_datastore: SYNOP    
   variables : [2t, 10s]
   clusters:
-    spatial:
-      scores:
+    temporal:
+      package : xskillscore
+      metrics:
         - mse
         - bias
-      avg_dims: point_index
-      output_path : ANEMOIvALO4vIFSHRES.nc
+        - rmse
+      avg_dims: [code, reference_time]
+
+output:
+  type: netcdf
+  temporal:
+    path: /scratch/project_465001235/vanginde/rmai-verification/ANEMOIvALO4vIFSHRES.nc
+
+visualization:
+  temporal:
+    directory: "/scratch/project_465001235/vanginde/rmai-verification/plots"
+    prefix: "STRETCHEDvALO4vIFSHRESvCERRA"
+    x: "lead_time"
+    
+ 
+
+    
   
     
