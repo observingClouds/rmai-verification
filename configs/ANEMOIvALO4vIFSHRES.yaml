@@ -68,11 +68,11 @@ verification:
 output:
   type: netcdf
   temporal:
-    path: /scratch/project_465001235/vanginde/rmai-verification/ANEMOIvALO4vIFSHRES.nc
+    path: ./ANEMOIvALO4vIFSHRES.nc
 
 visualization:
   temporal:
-    directory: "/scratch/project_465001235/vanginde/rmai-verification/plots"
+    directory: "./"
     prefix: "STRETCHEDvALO4vIFSHRESvCERRA"
     x: "lead_time"
     
