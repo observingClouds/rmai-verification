@@ -15,12 +15,20 @@ from output import save_dataset
 
 from visualization import plot_overview
 
+from utils.files import load_yaml
+
 LOG = logging.getLogger(__name__)
 
 VERIF_VARS = ["2t", "10s"]
 
 class Verification():
     def __init__(self,config):
+        if isinstance(config, str):
+            config = load_yaml(config)
+        elif not isinstance(config, dict):
+            LOG.ERROR("Unsupported config type")
+            raise TypeError
+        
         self._config = config
         self._start = config["dates"]["start"]
         self._end = config["dates"]["end"]
@@ -90,6 +98,13 @@ class Verification():
                 prefix=prefix,
                 **config
             )
+    
+    def verify(self):
+        self.homogenize_datastores()
+        self.calculate_clusters()
+        self.visualize_clusters()
+        
+
 
 
 
