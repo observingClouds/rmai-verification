@@ -173,4 +173,15 @@ class FcstDataStore(BaseDataStore):
             None
         """
         pass
-    
+
+class PointObservations(PointDataStore, ObsDataStore):
+    def __init__(self, files):
+        self._data = xr.open_dataset(files)
+
+    def select_valid_times(self, valid_times):
+        new_data = self._data.sel(valid_time=valid_times)
+        self._data = new_data
+
+    def select_variables(self, variables):
+        new_data = self._data[variables]
+        self._data = new_data
