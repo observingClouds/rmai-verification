@@ -6,16 +6,7 @@ from utils.files import yaml_file_type
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,  # Set log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-    format=LOG_FORMAT, 
-    datefmt=DATE_FORMAT,
-    handlers=[
-        #logging.FileHandler("app.log"),  # Log to a file
-        logging.StreamHandler()          # Log to console
-    ]
-)
+
 
 LOG = logging.getLogger(__name__)
 
@@ -59,11 +50,22 @@ if __name__ == "__main__":
     )
     client = Client(cluster)
 
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,  # Set log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        format=LOG_FORMAT, 
+        datefmt=DATE_FORMAT,
+        handlers=[
+            #logging.FileHandler("app.log"),  # Log to a file
+            logging.StreamHandler()          # Log to console
+        ]
+    )
+
     verif = Verification(args.config)
     try:
         verif.verify()
     except:
-        LOG.error("Error during verfication closing down dask cluster")
+        LOG.error("Error during verfication closing down dask cluster",exc_info=True)
         client.close()
         cluster.close()
     
