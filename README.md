@@ -23,7 +23,7 @@ By setting up the pipeline accordingly this can be done easily using the pipelin
 ### Using the config file 
 The most straigthforward way to run a verification pipeline is through the use of a config file
 ```bash
-python3 run_verification --config configs/config.yaml
+python3 run_verification.py --config configs/config.yaml
 ```
 
 The config is structured as follows:
