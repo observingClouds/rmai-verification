@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cluster = ["dask-jobqueue (>=0.8)]
+cluster = ["dask-jobqueue (>=0.8)"]
 dev = [
     "dask-jobqueue (>=0.8)", 
     "poetry (>=2.0)",
