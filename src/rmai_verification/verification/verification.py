@@ -5,17 +5,17 @@ import os
 from typing import Dict, List
 
 import homogenization
-from homogenization import load_datastores, select_variables, apply_transformations
+from ..homogenization import load_datastores, select_variables, apply_transformations
 
-from utils.sanitation import broadcast_nans, prep_config
+from ..utils.sanitation import broadcast_nans, prep_config
 
-from metrics import calculate_metrics
+from ..metrics import calculate_metrics
 
-from output import save_dataset
+from ..output import save_dataset
 
-from visualization import plot_overview
+from ..visualization import plot_overview
 
-from utils.files import load_yaml
+from ..utils.files import load_yaml
 
 LOG = logging.getLogger(__name__)
 

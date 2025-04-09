@@ -1,12 +1,12 @@
 import numpy as np
 from typing import Dict, List
 
-from utils.time import to_timedelta64
-from utils.files import get_filenames
+from ..utils.time import to_timedelta64
+from ..utils.files import get_filenames
 
-from datastores import DATASTORES
-from transformations import TRANSFORMATIONS
-from datastores.base import BaseDataStore
+from ..datastores import DATASTORES
+from ..transformations import TRANSFORMATIONS
+from ..datastores.base import BaseDataStore
 
 
 def load_datastores(datastores : Dict[str, Dict], start_date : str, end_date : str, frequency : str) -> Dict:

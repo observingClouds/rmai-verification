@@ -3,10 +3,10 @@ import xarray as xr
 import logging
 
 from .base import GridDataStore, ObsDataStore
-from grids.grid_mapping import add_xy
-from datastores.anemoi_inference import DROP_VARS
-from transformations.rename import Renamer
-from transformations.uv_to_speed import UVToSpeed
+from ..grids.grid_mapping import add_xy
+from .anemoi_inference import DROP_VARS
+from ..transformations.rename import Renamer
+from ..transformations.uv_to_speed import UVToSpeed
 
 
 LOG = logging.getLogger(__name__)

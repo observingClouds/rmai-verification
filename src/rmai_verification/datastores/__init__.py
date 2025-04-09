@@ -1,7 +1,7 @@
-from datastores.anemoi_datasets import AnemoiDatasets
-from datastores.anemoi_inference import AnemoiInference
-from datastores.rmi_re_pytools import RmiRePytoolsForecast, RmiRePytoolsObservation
-from datastores.base import PointObservations
+from .anemoi_datasets import AnemoiDatasets
+from .anemoi_inference import AnemoiInference
+from .rmi_re_pytools import RmiRePytoolsForecast, RmiRePytoolsObservation
+from .base import PointObservations
 
 DATASTORES = {
     "anemoi-inference": AnemoiInference,
