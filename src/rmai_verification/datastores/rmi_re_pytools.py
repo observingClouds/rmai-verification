@@ -4,7 +4,7 @@ import logging
 from typing import List
 
 from .base import PointDataStore, FcstDataStore, ObsDataStore
-from utils.utils import load_yaml
+from ..utils.utils import load_yaml
 
 LOG = logging.getLogger(__name__)
 

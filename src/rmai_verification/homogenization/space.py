@@ -3,9 +3,9 @@ import logging
 import xarray as xr
 import numpy as np
 
-from interpolation import METHODS
+from ..interpolation import METHODS
 
-from datastores.base import BaseDataStore
+from ..datastores.base import BaseDataStore
 
 LOG = logging.getLogger(__name__)
 

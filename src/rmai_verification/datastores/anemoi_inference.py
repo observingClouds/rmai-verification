@@ -3,7 +3,7 @@ import numpy as np
 import logging
 
 from .base import GridDataStore, FcstDataStore
-from grids.grid_mapping import add_xy
+from ..grids.grid_mapping import add_xy
 LOG = logging.getLogger(__name__)
 
 DROP_VARS = [

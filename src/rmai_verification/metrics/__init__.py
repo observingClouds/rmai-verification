@@ -3,7 +3,7 @@ import logging
 
 from . import xskill
 from typing import List, Dict
-from utils.sanitation import concat_dict_along_keys
+from ..utils.sanitation import concat_dict_along_keys
 
 METRICS = {
     "xskillscore" : {
