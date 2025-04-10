@@ -9,30 +9,40 @@ from ..utils.utils import load_yaml
 LOG = logging.getLogger(__name__)
 
 class RmiRePytoolsForecast(PointDataStore, FcstDataStore):
+    """Datastore-class to represent forecast netCDF-files produced by RMI's renewable-energy pytools"""
+    def __init__(self, files : str, model : str, station_info : str, variables : List[str] = None) -> None:
+        """Initialize the RmiRePytoolsForecast datastore.
+        This constructor sets up an RmiRePytoolsForecast instance by loading data files and optionally
+        mapping coordinates and selecting variables.
 
-    def __init__(self, files : str, model : str, station_info : str, variables : List[str] = None):
-        LOG.info("Initialzing RmiRePytoolsForecast datastore")
+        Args:
+            files (str): file path to load data from.
+            model (str): model name to select from the dataset.
+            station_info (str): path to the station information YAML file.
+            variables (List[str], optional): Variables to select from the dataset.
+                If None, all variables are loaded. Defaults to None.
+        
+        Returns:
+            None
+        """
+        LOG.info("Initializing RmiRePytoolsForecast datastore")
         self._files = files
         self._model = model
         self._station_info = load_yaml(station_info)
         self._data = self._open()
 
         if variables:
-            self.select_vars(self._vars)
+            self.select_variables(variables)
+         
+    def _open(self) -> xr.Dataset:
+        """Open the dataset and postprocess it.
+        This method loads the dataset from the specified files, selects the model,
+        and applies postprocessing.
         
-    def select_variables(self, vars):
-        new_data = self._data[vars]
-        self._data = new_data
-
-    def select_reference_times(self,reference_times):
-        new_data = self._data.sel(reference_time=reference_times)
-        self._data = new_data
-
-    def select_lead_times(self,lead_times):
-        new_data = self._data.sel(lead_time=lead_times)
-        self._data = new_data
-    
-    def _open(self):
+        Returns:
+            xr.Dataset: The postprocessed dataset.
+        """
+        
         ds = xr.open_dataset(self._files).sel(model=self._model).drop_vars("model")
         ds_postproc = _postprocess_fcst(ds)
         aux_coords = dict(
@@ -46,8 +56,22 @@ class RmiRePytoolsForecast(PointDataStore, FcstDataStore):
 
 
 class RmiRePytoolsObservation(PointDataStore, ObsDataStore):
+    """Datastore-class to represent observation netCDF-files produced by RMI's renewable-energy pytools"""
+    def __init__(self,files : str, model : str, station_info : str, variables : List[str] = None) -> None:
+        """Initialize the RmiRePytoolsObservation datastore.
+        This constructor sets up an RmiRePytoolsObservation instance by loading data files and optionally
+        mapping coordinates and selecting variables.
 
-    def __init__(self,files : str, model : str, station_info : str, variables : List[str] = None):
+        Args:
+            files (str): file path to load data from.
+            model (str): model name to select from the dataset.
+            station_info (str): path to the station information YAML file.
+            variables (List[str], optional): Variables to select from the dataset.
+                If None, all variables are loaded. Defaults to None.
+        
+        Returns:
+            None
+        """
         LOG.info("Initialzing RmiRePytoolsObservation datastore")
         self._files = files
         self._model = model
@@ -56,17 +80,16 @@ class RmiRePytoolsObservation(PointDataStore, ObsDataStore):
         self._data = self._open()
 
         if variables:
-            self.select_vars(self._vars)
+            self.select_variables(variables)
         
-    def select_variables(self, vars):
-        new_data = self._data[vars]
-        self._data = new_data
+    def _open(self) -> xr.Dataset:
+        """Open the dataset and postprocess it.
+        This method loads the dataset from the specified files, selects the model,
+        and applies postprocessing.
 
-    def select_valid_times(self,valid_times):
-        new_data = self._data.sel(valid_time=valid_times)
-        self._data = new_data
-
-    def _open(self):
+        Returns:
+            xr.Dataset: The postprocessed dataset.
+        """
         ds = xr.open_dataset(self._files).sel(model=self._model).drop_vars("model")
         ds_postproc = _postprocess_obs(ds)
         aux_coords = dict(
@@ -79,7 +102,17 @@ class RmiRePytoolsObservation(PointDataStore, ObsDataStore):
         return ds_index
         
 
-def _postprocess_fcst(ds):
+def _postprocess_fcst(ds : xr.Dataset) -> xr.Dataset:
+    """Postprocess the forecast dataset.
+    This method stacks the dataset, assigns coordinates for reference time and lead time,
+    and renames dimensions.
+
+    Args:
+        ds (xr.Dataset): The input dataset to be postprocessed.
+
+    Returns:
+        xr.Dataset: The postprocessed dataset with assigned coordinates and renamed dimensions.
+    """
     ds_reftime = ds.assign_coords(
         reference_time=ds["date"]+ds["run"].astype("timedelta64[h]"),
         lead_time = ds["lead_time"].astype("timedelta64[h]")
@@ -102,7 +135,18 @@ def _postprocess_fcst(ds):
 
     return ds_valid
 
-def _postprocess_obs(ds):
+def _postprocess_obs(ds : xr.Dataset) -> xr.Dataset:
+    """Postprocess the observation dataset.
+    This method stacks the dataset, assigns coordinates for valid_time and
+    renames dimensions.
+
+    Args:
+        ds (xr.Dataset): The input dataset to be postprocessed.
+    
+    Returns:
+        xr.Dataset: The postprocessed dataset with assigned coordinates and renamed dimensions.
+    """
+    
     ds_valid = _postprocess_fcst(ds)
     ds_dropped = ds_valid.stack(
         combined=["reference_time", "lead_time"]

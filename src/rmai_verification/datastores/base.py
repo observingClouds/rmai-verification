@@ -1,16 +1,17 @@
 import abc
 import xarray as xr
-import numpy.typing as npt
-from typing import Dict, List, Any
+from numpy.typing import NDArray
+import numpy as np
+from typing import Dict, List, Any, Union
 
 
 class BaseDataStore(abc.ABC):
     """
-    Base class
+    Base DataStore class
     """
     @property
     def dims(self) -> Dict[str, int]:
-        """Get the names and size of the dimensions of the DataStore
+        """Returns the names and sizes of the dimensions of the DataStore
         
         Returns:
             Dict: the dimension names and sisze of the data
@@ -27,7 +28,7 @@ class BaseDataStore(abc.ABC):
         return list(self._data.keys())
     
     @property
-    def longitudes(self) -> npt.NDArray:
+    def longitudes(self) -> NDArray:
         """Returns the longitudes of the datastore
         
         Returns
@@ -36,7 +37,7 @@ class BaseDataStore(abc.ABC):
         return self._data["longitude"].values
 
     @property
-    def latitudes(self) -> npt.NDArray:
+    def latitudes(self) -> NDArray:
         """Returns the latitudes of the datastore
         
         Returns
@@ -84,22 +85,32 @@ class BaseDataStore(abc.ABC):
         """
         return self._data
 
-    @abc.abstractmethod
-    def select_variables(self,variables):
+    def select_variables(self,variables: List[str]) -> None:
         """Selects variables from the data
 
         Returns: 
             None
         """
-        pass
+        new_data = self._data[variables]
+        self._data = new_data
     
-    def transform(self,transformation):
+    def transform(self,transformation): #FIXME: define a transformation class
+        """
+        Applies a transformation to the current data and updates it.
+
+        Args:
+            transformation: An transformation object that provides an `execute` method, 
+                            which takes the current data as input and returns the transformed data.
+
+        Returns:
+            None
+        """
         new_data = transformation.execute(self._data)
         self._data = new_data
 
     
 class GridDataStore(BaseDataStore):
-
+    """Class for DataStores that contain gridded (structured or unstructured) data"""
     _is_point: bool = False
 
     @property
@@ -113,75 +124,97 @@ class GridDataStore(BaseDataStore):
     
     
     @abc.abstractmethod
-    def unstack(self):
+    def unstack(self) -> None:
         """Unstack the 1D spatial dimension to 2D
 
         Returns:
             None
         """
         pass
-    
-    # @abc.abstractmethod
-    # def stack(self):
-    #     """Stack the 2D spatial dimension to 1D
-        
-    #     Returns:
-    #         None
-    #     """
-    #     pass
+
 
 class PointDataStore(BaseDataStore):
+    """Class for DataStores that contain point data"""
     _is_point: bool = True
 
-
 class ObsDataStore(BaseDataStore):
+    "Class for Datastores that contain observations or (re)analysis"
     _is_observation: bool = True
 
     @property
-    def valid_times(self):
+    def valid_times(self) -> NDArray[np.datetime64]:
+        """Returns the valid times from the datastore.
+
+        Returns:
+            NDArray[np.datetime64]: An array of valid times represented as numpy datetime64 objects.
+        """
         return self._data["valid_time"].values
 
-    @abc.abstractmethod
-    def select_valid_times(self,valid_times: List | xr.DataArray):
+    def select_valid_times(self,valid_times: Union[List[np.datetime64], NDArray[np.datetime64], xr.DataArray]) -> None:
         """Subsets the data in the datastore to only contain 
         the selected valid_times
 
         Returns:
             None
         """
-        pass
+        new_data = self._data.sel(valid_time=valid_times)
+        self._data = new_data
 
 class FcstDataStore(BaseDataStore):
     _is_observation: bool = False
 
-    @abc.abstractmethod
-    def select_reference_times(self,reference_times: List | xr.DataArray):
-        """Subsets the data in the datastore to only contain 
-        the selected reference times
+    @property
+    def reference_times(self) -> NDArray[np.datetime64]:
+        """Returns the reference times from the datastore.
+
+        Returns:
+            NDArray[np.datetime64]: An array of reference times.
+        """
+        return self._data["reference_time"].values
+
+    @property
+    def lead_times(self) -> NDArray[np.timedelta64]:
+        """
+        Retrieve the lead times from the datastore.
+
+        Returns:
+            NDArray[np.timedelta64]: An array of lead times represented as numpy timedelta64 objects.
+        """
+        return self._data["lead_time"].values
+    
+    def select_reference_times(self,reference_times: Union[List[np.datetime64], NDArray[np.datetime64], xr.DataArray]) -> None:
+        """Subsets the data in the datastore to only contain the selected reference times
 
         Returns:
             None
         """
-        pass
+        new_data = self._data.sel(reference_time=reference_times)
+        self._data = new_data    
 
-    @abc.abstractmethod
-    def select_lead_times(self,lead_times: List | xr.DataArray):
-        """Subsets the data in the datastore to only contain 
-        the selected lead times
+    
+    def select_lead_times(self,lead_times: Union[List[np.timedelta64], NDArray[np.timedelta64], xr.DataArray]) -> None:
+        """Subsets the data in the datastore to only contain the selected lead times
 
         Returns:
             None
         """
-        pass
+        new_data = self._data.sel(lead_time=lead_times)
+        self._data = new_data
+
 
 class PointObservations(PointDataStore, ObsDataStore):
     def __init__(self, files):
         self._data = xr.open_dataset(files)
 
-    def select_valid_times(self, valid_times):
-        new_data = self._data.sel(valid_time=valid_times)
-        self._data = new_data
+class PointForcasts(PointDataStore, FcstDataStore):
+    def __init__(self, files):
+        self._data = xr.open_dataset(files)
 
-    def select_variables(self, variables):
-        new_data = self._data[variables]
-        self._data = new_data
+class GriddedObservations(GridDataStore, ObsDataStore):
+    def __init__(self, files):
+        self._data = xr.open_dataset(files)
+
+class GriddedForecasts(GridDataStore, FcstDataStore):
+    def __init__(self, files):
+        self._data = xr.open_dataset(files)
+

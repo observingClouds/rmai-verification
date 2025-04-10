@@ -2,8 +2,12 @@ import xarray as xr
 import numpy as np
 import logging
 
+from numpy.typing import NDArray
+from typing import List, Tuple, Dict, Union
+
 from .base import GridDataStore, FcstDataStore
 from ..grids.grid_mapping import add_xy
+
 LOG = logging.getLogger(__name__)
 
 DROP_VARS = [
@@ -31,13 +35,17 @@ MF_KWARGS = {
 
 
 class AnemoiInference(GridDataStore,FcstDataStore):
-    def __init__(self, files, variables=None, mapping=None, mf_kwargs=dict()):
+    def __init__(self, 
+                 files: List[str], 
+                 variables: Union[List[str],Tuple[str],set] = None,
+                 mapping: Union[Dict[str,str],str] = None,
+                 mf_kwargs: Dict[str,str] = dict()
+                 ):
         LOG.info("Initializing AnemoiInference datastore")
         # Add the files to the class
-        self._files = files #FIXME
-        self._mapping = mapping
-        self._stacked = True
-
+        self._files = files #FIXME should we handle file-globbing here?
+        self._mapping: Union[Dict[str],str] = mapping
+        self._stacked: bool = True
 
         # Add the xr.open_mfdataset kwargs
         self._mf_kwargs = dict()
@@ -52,22 +60,32 @@ class AnemoiInference(GridDataStore,FcstDataStore):
         self._latitudes = ds["latitude"].data
 
         # Get the lead times
-        self._lead_times = _set_lead_times(ds)
+        self._lead_times = _calc_lead_times(ds)
 
         ds.close()
 
 
         self._data = self._open()
         if variables:
-            self.select_vars(self._vars)
+            self.select_vars(variables)
         
         if self._mapping:
             self._data = add_xy(self._data,self._mapping)
 
-        self._dims = dict(self._data.sizes)
         LOG.info("Finished initializing AnemoiInference datastore")
 
     def _open(self):
+        """
+        Opens and processes multiple NetCDF datasets into an xarray Dataset with
+        assigned coordinates and attributes.
+        This method uses `xarray.open_mfdataset` to open multiple NetCDF files,
+        preprocesses them, and assigns additional coordinates such as lead time,
+        grid index, valid time.
+
+        Returns:
+            xarray.Dataset: The processed dataset with assigned coordinates and
+            attributes.
+        """
         ds = xr.open_mfdataset(
             self._files,
             preprocess=_preprocess,
@@ -92,24 +110,23 @@ class AnemoiInference(GridDataStore,FcstDataStore):
             }
         )
         ds_coords.attrs["is_observation"] = False
-        
         return ds_coords
-    
-    def select_variables(self,vars):
-        new_data = self._data[vars]
-        self._data = new_data
-        self._vars = vars
-    
-    def select_reference_times(self,reference_times):
-        new_data = self._data.sel(reference_time=reference_times)
-        self._data = new_data
 
-    def select_lead_times(self,lead_times):
-        new_data = self._data.sel(lead_time=lead_times)
-        self._data = new_data
+    def unstack(self,mapping: Union[str, Dict[str,str]] = None):
+        """Unstacks the dataset from a stacked format to a grid format.
 
+        This method checks if the dataset is currently stacked and if so, it
+        unstacks it. If a mapping is provided, it will be used to add x and y
+        coordinates to the dataset. If the dataset is already unstacked it
+        will do nothing.
 
-    def unstack(self,mapping=None):
+        Args:
+            mapping (Union[Dict[str,str],str], optional): A mapping to add x and y
+                coordinates to the dataset. Defaults to None.
+
+        Returns:
+            None
+        """
         LOG.debug(f"Start unstacking, stacked state is currently: {self._stacked}")
         if not self._stacked:
             pass
@@ -117,6 +134,7 @@ class AnemoiInference(GridDataStore,FcstDataStore):
         if mapping != None:
             if self._mapping != None:
                 LOG.error("Dataset already contains a mapping")
+                raise ValueError
             else:
                 self._mapping = mapping
                 self._data = add_xy(self._data,mapping)
@@ -134,10 +152,36 @@ class AnemoiInference(GridDataStore,FcstDataStore):
         self._stacked = False
             
 
-def _set_lead_times(ds):
+def _calc_lead_times(ds: xr.Dataset | xr.DataArray) -> NDArray[np.timedelta64]:
+        """
+        Calculate the lead times from a dataset.
+
+        This function computes the lead times by subtracting the first time value 
+        in the dataset from all other time values. The result is returned as a 
+        data array.
+
+        Args:
+            ds (xarray.Dataset): The input dataset containing a "time" coordinate.
+
+        Returns:
+            numpy.ndarray: An array of lead times relative to the first time value.
+        """
         return (ds["time"]- ds["time"][0]).data
 
-def _preprocess(ds):
+def _preprocess(ds: xr.Dataset | xr.DataArray) -> xr.Dataset:
+    """
+    Preprocess the dataset by dropping unnecessary variables and renaming dimensions.
+    This function drops specified variables from the dataset and renames dimensions
+    to standard names. It also expands the reference time dimension and assigns
+    attributes to the reference time variable.
+
+    Args:
+        ds (xarray.Dataset): The input dataset to preprocess.
+
+    Returns:
+        xarray.Dataset: The preprocessed dataset with dropped variables and renamed dimensions.
+    """
+
     reference_time = ds["time"].data[0]
     
     ds_pruned = ds.drop_vars(DROP_VARS)
@@ -154,5 +198,4 @@ def _preprocess(ds):
             "time":"lead_time"
         }
     )
-
     return ds_renamed
