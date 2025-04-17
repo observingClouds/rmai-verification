@@ -101,13 +101,13 @@ class AnemoiDatasets(GridDataStore, ObsDataStore):
         ds_unstacked = self._data.unstack()
 
         if "valid_time" in self._data.dims:
-            dims = ["valid_time", "x", "y"]
+            dims = ["valid_time", "y", "x"]
         else:
-            dims = ["reference_time", "lead_time", "x", "y"]
+            dims = ["reference_time", "lead_time", "y", "x"]
 
         ds_transposed = ds_unstacked.transpose(*dims,...)
         self._data = ds_transposed
-        self._unstacked = True
+        self._stacked = False
 
     def _open(self, variables: List[str] = None):
         """Open the dataset and apply post-processing.

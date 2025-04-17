@@ -1,6 +1,6 @@
 from . import datastores
 from . import grids
-from . import homogenization
+from . import alignment
 from . import interpolation
 from . import metrics
 from . import output
@@ -11,7 +11,7 @@ from . import visualization
 __all__ = [
     "datastores",
     "grids",
-    "homogenization",
+    "alignment",
     "interpolation",
     "metrics",
     "output",

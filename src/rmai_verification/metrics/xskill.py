@@ -1,11 +1,24 @@
+from typing import List
+
 import xskillscore as xs
+import xarray as xr 
 
-def rmse(obs, fcst, avg_dim, skipna=True):
-    return xs.rmse(obs, fcst, avg_dim, skipna=skipna)
 
-def mse(obs, fcst, avg_dim, skipna=True):
-    return xs.mse(obs, fcst, avg_dim, skipna=skipna)
+def _chunks(avg_dim: List[str]) -> dict:
+    """
+    Create a dictionary of chunks for xskillscore functions.
+    """
+    return {dim: -1 for dim in avg_dim}
 
-def bias(obs, fcst, avg_dim, skipna=True):
-    return xs.me(obs, fcst, avg_dim, skipna=skipna)
+def rmse(fcst: xr.Dataset | xr.DataArray, obs: xr.Dataset | xr.DataArray, avg_dim: List[str], skipna: bool = True) -> xr.Dataset | xr.DataArray:
+    chunks = _chunks(avg_dim)
+    return xs.rmse(fcst.chunk(chunks), obs.chunk(chunks), avg_dim, skipna=skipna)
+
+def mse(fcst: xr.Dataset | xr.DataArray, obs: xr.Dataset | xr.DataArray, avg_dim: List[str], skipna: bool = True) -> xr.Dataset | xr.DataArray:
+    chunks = _chunks(avg_dim)
+    return xs.mse(fcst.chunk(chunks), obs.chunk(chunks), avg_dim, skipna=skipna)
+
+def bias(fcst: xr.Dataset | xr.DataArray, obs: xr.Dataset | xr.DataArray, avg_dim: List[str], skipna: bool = True) -> xr.Dataset | xr.DataArray:
+    chunks = _chunks(avg_dim)
+    return xs.me(fcst.chunk(chunks), obs.chunk(chunks), avg_dim, skipna=skipna)
 

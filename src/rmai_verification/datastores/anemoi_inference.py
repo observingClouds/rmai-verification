@@ -51,9 +51,13 @@ class AnemoiInference(GridDataStore,FcstDataStore):
         self._mf_kwargs = dict()
         for key, value in MF_KWARGS.items():
             self._mf_kwargs[key]=mf_kwargs.get(key,value)
+        for key, value in mf_kwargs.items():
+            if key not in self._mf_kwargs.keys():
+                self._mf_kwargs[key] = value
+        
     
         # open a single dataset to infer some properties
-        ds = xr.open_dataset(self._files[0])
+        ds = xr.open_dataset(self._files[0],engine=self._mf_kwargs["engine"])
 
         # Get the longitudes and latitude 
         self._longitudes = ds["longitude"].data
@@ -145,8 +149,8 @@ class AnemoiInference(GridDataStore,FcstDataStore):
         ds_transposed = ds_unstacked.transpose(
             "reference_time",
             "lead_time",
-            "x",
-            "y"
+            "y",
+            "x"
         )
         self._data = ds_transposed
         self._stacked = False
