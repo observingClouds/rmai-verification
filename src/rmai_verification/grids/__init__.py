@@ -1,5 +1,4 @@
 import cartopy.crs as ccrs
-from .grid_mapping import create_cartopy_crs
 
 # Predefined grids
 GRIDS = dict(

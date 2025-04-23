@@ -46,7 +46,7 @@ def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : s
     if ref_store.is_point:
         # The reference datastore is a PointDataStore.
         LOG.info(f"reference datastore {reference_datastore} is an ObsDataStore")
-        common_data["reference_datastore"] = ref_store.data
+        common_data[reference_datastore] = ref_store.data
         interpolator = METHODS["interpolate"]
         interpolation = interpolator(
             ref_store.data,
