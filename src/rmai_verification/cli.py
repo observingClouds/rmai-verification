@@ -30,7 +30,7 @@ def run_local(args):
         ]
     )
 
-    verif = Verification(args.config)
+    verif = Verification(args.CONFIG)
     try:
         verif.verify()
     except:
@@ -67,7 +67,7 @@ def run_slurm(args):
         ]
     )
 
-    verif = Verification(args.config)
+    verif = Verification(args.CONFIG)
     try:
         verif.verify()
     except:
@@ -80,13 +80,6 @@ def run_slurm(args):
 def main():
 
     parser = argparse.ArgumentParser(description="RMAI Verification CLI")
-    parser.add_argument(
-        "CONFIG",
-        required=True,
-        type=str,
-        help="Path to the YAML configuration file"
-    )
-
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
 
     local_parser = subparsers.add_parser(
@@ -142,6 +135,11 @@ def main():
         type=str,
         default="hsn0",
         help="Network interface to use for the dask workers"
+    )
+    parser.add_argument(
+        "CONFIG",
+        type=str,
+        help="Path to the YAML configuration file"
     )
 
     args = parser.parse_args()
