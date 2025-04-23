@@ -5,7 +5,8 @@ import os
 from typing import Dict, List, Union
 
 
-from ..alignment import apply_transformations, align_reference_times, align_spatial, align_valid_times
+from ..alignment import align_reference_times, align_spatial, align_valid_times
+from ..transformations import apply_transformations
 from ..utils.sanitation import broadcast_nans, prep_config
 from ..metrics import calculate_metrics
 from ..output import save_dataset
@@ -164,18 +165,22 @@ class Verification():
             - Default directory is "./" if not specified
             - Default prefix is the cluster name if not specified
         """
-        
-        for cluster, metrics in self._clusters.items():
-            config = prep_config(self._config["visualization"],cluster)
-            prefix = os.path.join(
-                config.pop("directory","./"),
-                config.pop("prefix",cluster)
-            )
-            plot_overview(
-                dataset = metrics,
-                prefix=prefix,
-                **config
-            )
+
+        if not (self._config.get("visualization",None) == None):
+            for cluster, metrics in self._clusters.items():
+                LOG.info(f"Visualizing cluster {cluster}")
+                config = prep_config(self._config["visualization"],cluster)
+                prefix = os.path.join(
+                    config.pop("directory","./"),
+                    config.pop("prefix",cluster)
+                )
+                plot_overview(
+                    dataset = metrics,
+                    prefix=prefix,
+                    **config
+                )
+        else:
+            LOG.info("No visualization configuration found. Skipping visualization.")
     
     def verify(self):
         self.align_datastores()
