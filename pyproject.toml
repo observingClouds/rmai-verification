@@ -28,10 +28,15 @@ dev = [
     "dask-jobqueue (>=0.8)", 
     "poetry (>=2.0)",
 ]
+dashboard = [
+    "bokeh (>=3.1.0)"
+]
 
 [tool.poetry]
 packages = [{include = "rmai_verification", from = "src"}]
 
+[tool.poetry.scripts]
+rmai-verification = "rmai_verification.cli:main"
 
 [tool.poetry.group.scores.dependencies]
 scores = "^2.0.0"
