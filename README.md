@@ -17,7 +17,10 @@ The package provides basic plotting functionality. It can plot an overview of th
 The idea of this package is that (apart from looking at a general overview) in-depth verification is best done by plotting things interactively.
 
 By setting up the pipeline accordingly this can be done easily using the pipeline endproduct `xarray.Dataset` and `xarray`'s native plotting functionality.
-
+## Installation
+1. `git clone` this repo
+2. `cd` to the cloned folder
+3. `pip install .` or `pip install .[cluster]` if you want to submit the verification task to an hpc-cluster
 ## Usage
 
 ### Using the config file 
