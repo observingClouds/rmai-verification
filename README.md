@@ -20,7 +20,8 @@ By setting up the pipeline accordingly this can be done easily using the pipelin
 ## Installation
 1. `git clone` this repo
 2. `cd` to the cloned folder
-3. `pip install .` or `pip install .[cluster]` if you want to submit the verification task to an hpc-cluster
+3. `pip install .` or `pip install .[cluster]` if you want to submit the verification task to an hpc-cluster.  
+   `pip install .[cluster,scores]` if you also want to use the `scores` package (in addition to `xskillscore`) to calculate verification scores
 ## Usage
 
 ### Using the config file 
