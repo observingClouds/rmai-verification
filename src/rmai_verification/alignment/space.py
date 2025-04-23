@@ -42,10 +42,11 @@ def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : s
     #FIXME: Datastores should have a .coords() classmethod
     _datastores = datastores.copy()
     ref_store = _datastores.pop(reference_datastore)
-    common_data = {reference_datastore: ref_store.data}
+    common_data = dict()
     if ref_store.is_point:
         # The reference datastore is a PointDataStore.
         LOG.info(f"reference datastore {reference_datastore} is an ObsDataStore")
+        common_data["reference_datastore"] = ref_store.data
         interpolator = METHODS["interpolate"]
         interpolation = interpolator(
             ref_store.data,
@@ -84,9 +85,12 @@ def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : s
                 LOG.error(f"Cannot transform PointDataStore {name} to a grid.")
                 raise ValueError
             else:
+                #TODO: We don't necessarily need to unstack here. But then the scores are also multiindexed.
+                # And saving multiindexed data is not yet supported by the xarray backend.
+                ref_store.unstack()
+                store.unstack()
+                common_data[reference_datastore] = ref_store.data
                 if (ref_store.latitudes == store.latitudes).any() and (ref_store.longitudes == store.longitudes).any():
-                    if not ref_store.is_stacked:
-                        store.unstack()
                     common_data[name] = store.data
                 else:               
                     raise NotImplementedError("Regridding is not yet supported")
