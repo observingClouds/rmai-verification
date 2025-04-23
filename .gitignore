@@ -1,12 +1,5 @@
 __pycache__
-data/*
-knmi/*
-*.pdf
-worker.ipynb
-scrapbook.ipynb
+*.ipynb
 *.nc
 venv
-plots
-knmi*
-old_scripts
 notebooks

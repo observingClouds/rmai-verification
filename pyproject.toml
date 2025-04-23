@@ -7,9 +7,11 @@ authors = [
     {name = "Dieter Van den Bleeken"}
 ]
 readme = "README.md"
-requires-python = ">3.10"
+requires-python = ">3.10,<4.0"
 
 dependencies = [
+    "netcdf4 (>=1.7.2,<2.0.0)",
+    "h5netcdf (>=1.6.1,<2.0.0)",
     "xarray (>=2024.10)",
     "Cartopy (>=0.23)",
     "zarr (>=2.16)",
@@ -26,10 +28,18 @@ dev = [
     "dask-jobqueue (>=0.8)", 
     "poetry (>=2.0)",
 ]
+dashboard = [
+    "bokeh (>=3.1.0)"
+]
 
 [tool.poetry]
 packages = [{include = "rmai_verification", from = "src"}]
 
+[tool.poetry.scripts]
+rmai-verification = "rmai_verification.cli:main"
+
+[tool.poetry.group.scores.dependencies]
+scores = "^2.0.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

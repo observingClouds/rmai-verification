@@ -8,6 +8,8 @@ from .anemoi_inference import DROP_VARS
 from ..transformations.rename import Renamer
 from ..transformations.uv_to_speed import UVToSpeed
 
+from typing import List, Union, Tuple, Dict
+
 
 LOG = logging.getLogger(__name__)
 
@@ -33,54 +35,63 @@ COORDS = dict(
 
 
 class AnemoiDatasets(GridDataStore, ObsDataStore):
-    def __init__(self, files, variables=None, mapping=None):
+    """Datastore-class to represent zarr-files produced by anemoi-datasets"""
+    def __init__(self,
+
+                 files: str, 
+                 variables: Union[List[str], Tuple[str], set] = None, 
+                 mapping: Union[Dict[str,str], str] = None
+                 ) -> None:
+        """Initialize the AnemoiDataset datastore.
+
+        This constructor sets up an AnemoiDataset instance by loading data files and optionally
+        mapping coordinates and selecting variables.
+
+        Args:
+            files (str): file path to load data from.
+            variables (Union[List[str], Tuple[str], set], optional): Variables to select from the dataset.
+                If None, all variables are loaded. Defaults to None.
+            mapping (Union[Dict[str,str], str], optional): Mapping configuration for adding x,y coordinates.
+                Can be either a dictionary mapping variable names or a string specifying the mapping type.
+                Defaults to None.
+
+        Returns:
+            None
+        """
         LOG.info("Initializing AnemoiDataset datastore")
-        self._files = files
-        self._mapping = mapping
-        self._stacked = True
+        self._files: List[str] = files
+        self._mapping: Union[Dict[str,str], str]  = mapping
+        self._stacked: bool = True
 
         # Open the dataset
-        self._data = self._open()
-
-        if variables:
-            self.select_vars(variables)
+        self._data = self._open(variables=variables)
 
         if self._mapping:
             self._data = add_xy(self._data,self._mapping)
+    
+    def unstack(self,mapping: Union[str, Dict[str,str]] = None):
+        """Unstacks the dataset from a stacked format to a grid format.
 
-    @property
-    def dims(self):
-        dims = super().dims.copy()
-        _ = dims.pop("variable",None)
-        return dims
-        
-    @property
-    def vars(self):
-        return self._data["variable"].values
+        This method checks if the dataset is currently stacked and if so, it
+        unstacks it. If a mapping is provided, it will be used to add x and y
+        coordinates to the dataset. If the dataset is already unstacked it
+        will do nothing.
 
+        Args:
+            mapping (Union[Dict[str,str],str], optional): A mapping to add x and y
+                coordinates to the dataset. Defaults to None.
 
-    @property
-    def data(self):
-        LOG.info("Transforming anemoi-datasets xr.DataArray to xr.Dataset, this might take some time.")
-        data = self._data.to_dataset(dim="variable")
-        return data
-        
-    def select_variables(self, vars):
-        new_data = self._data.sel(variable=vars)
-        self._data = new_data
-        self._vars = vars
+        Returns:
+            None
+        """
 
-    def select_valid_times(self,valid_times):
-        new_data = self._data.sel(valid_time=valid_times)
-        self._data = new_data
-
-    def unstack(self,mapping=None):
         if not self._stacked:
             pass
 
         if mapping != None:
             if self._mapping != None:
                 LOG.error("Dataset already contains a mapping")
+                raise ValueError
             else:
                 self._mapping = mapping
                 self._data = add_xy(self._data,mapping)
@@ -89,53 +100,50 @@ class AnemoiDatasets(GridDataStore, ObsDataStore):
             raise ValueError
         ds_unstacked = self._data.unstack()
 
-        #FIXME: in some edge-cases an anemoi-datasets can have ref and leadtime
         if "valid_time" in self._data.dims:
-            dims = ["valid_time", "x", "y"]
+            dims = ["valid_time", "y", "x"]
         else:
-            dims = ["reference_time", "lead_time", "x", "y"]
+            dims = ["reference_time", "lead_time", "y", "x"]
 
         ds_transposed = ds_unstacked.transpose(*dims,...)
         self._data = ds_transposed
-        self._unstacked = True
+        self._stacked = False
 
-    def transform(self, transformation):
-        match transformation:
-            case Renamer():
-                LOG.debug("Using AnemoiDatasets specific Renamer transformation")
-                new_names = []
-                for variable in self._data["variable"].values:
-                    name = None
-                    for new_name, old_names in transformation.rename_dict.items():
-                        if variable in old_names:
-                            name = new_name
-                    if name == None:
-                        name = variable.astype(str)
-                    new_names.append(name)
-                new_data = self._data.assign_coords(
-                    {
-                        "variable": ("variable", new_names)
-                    }
-                )
-                self._data = new_data
-            case UVToSpeed():
-                LOG.debug("Using AnemoiDatasets specific UVToSpeed transformation")
-                speed = np.sqrt(self._data.sel(variable=transformation.u_wind)**2 + self._data.sel(variable=transformation.v_wind)**2)
-                speed = speed.expand_dims("variable").assign_coords(variable=[transformation.wind_speed])
-                new_data = xr.concat([speed,self._data], dim="variable",combine_attrs="drop_conflicts")
-                self._data = new_data
+    def _open(self, variables: List[str] = None):
+        """Open the dataset and apply post-processing.
+        This method loads the dataset from the specified file path and applies
+        post-processing to add coordinates and drop unused variables.
 
-            case _:
-                super().transform(transformation)
+        Args:
+            variables (List[str], optional): Variables to select from the dataset.
+                If None, all variables are loaded. Defaults to None.
 
-    def _open(self):
+        Returns:
+            xr.Dataset: The processed dataset with coordinates and selected variables.
+        """
+
         ds = xr.open_zarr(self._files,consolidated=False,chunks="auto")
         ds_postproc = _postprocess(ds)
-        return ds_postproc
+        if variables:
+            ds_selected = ds_postproc.sel(variable=variables)
+        else:
+            ds_selected = ds_postproc
+            if len(ds_selected["variable"]) > 10:
+                LOG.warning(f"Transforming anemoi-datasets xr.DataArray with {len(ds_postproc['variable'])} variables to xr.Dataset, this might take some time. Consider selecting the relevant variables during initialization")
+        return ds_selected.to_dataset(dim="variable")
     
 
-def _postprocess(dataset):
+def _postprocess(dataset : xr.Dataset) -> xr.Dataset:
+    """Post-process the dataset to add coordinates and drop unused variables.
 
+    Args:
+        dataset (xr.Dataset): The input dataset to be processed.
+
+    Returns:
+        xr.Dataset: The processed dataset with assigned coordinates and
+            attributes.
+    """
+    
     # Add coordinates
     coords = {key: dataset[value].astype("datetime64[ns]").load() if key == "valid_time" else dataset[value].load() for key, value in COORDS.items()}
     for key in ("latitude","longitude"):

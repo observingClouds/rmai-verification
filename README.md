@@ -17,13 +17,23 @@ The package provides basic plotting functionality. It can plot an overview of th
 The idea of this package is that (apart from looking at a general overview) in-depth verification is best done by plotting things interactively.
 
 By setting up the pipeline accordingly this can be done easily using the pipeline endproduct `xarray.Dataset` and `xarray`'s native plotting functionality.
-
+## Installation
+1. `git clone` this repo
+2. `cd` to the cloned folder
+3. `pip install .` or `pip install .[cluster]` if you want to submit the verification task to an hpc-cluster.  
+   `pip install .[cluster,scores]` if you also want to use the `scores` package (in addition to `xskillscore`) to calculate verification scores
 ## Usage
 
 ### Using the config file 
 The most straigthforward way to run a verification pipeline is through the use of a config file
-```bash
-python3 run_verification.py --config configs/config.yaml
+
+Run using dask on a local cluster
+```
+rmai-verification local --n_workers 2 --threads_per_worker 1 configs/config.yaml
+```
+Run using dask on a slurm cluster
+```
+rmai-verification slurm --queue standard --account my_project --cores 64 --memory 240GB --interface hsn0 --config ./configs/config.yaml
 ```
 
 The config is structured as follows:
@@ -168,3 +178,5 @@ visualization:
 # No plotting for the per_reference_time cluster, since it doesn't make sense at it still has the reference_time dimensions
 # Currently no additional averaging is done if there is more then 1 dimension remain after selecting x and y
 ```
+### Using the API
+see the example [here](examples/dataset_example.ipynb)
