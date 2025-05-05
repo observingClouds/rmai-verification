@@ -71,7 +71,7 @@ class AnemoiInference(GridDataStore,FcstDataStore):
 
         self._data = self._open()
         if variables:
-            self.select_vars(variables)
+            self.select_variables(variables)
         
         if self._mapping:
             self._data = add_xy(self._data,self._mapping)
