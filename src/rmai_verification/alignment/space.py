@@ -47,7 +47,7 @@ def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : s
         # The reference datastore is a PointDataStore.
         LOG.info(f"reference datastore {reference_datastore} is an ObsDataStore")
         common_data[reference_datastore] = ref_store.data
-        interpolator = METHODS["interpolate"]
+        interpolator = METHODS["delaunay"]
         interpolation = interpolator(
             ref_store.data,
             transformation_kwargs
@@ -69,7 +69,7 @@ def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : s
                 for coord in POINT_COORDS:
                     assert coord in list(ref_store.data.coords.keys()), f"Coordinate {coord} missing from the reference datastore {reference_datastore}"
                 LOG.info(f"Interpolating to reference points for datastore {name}")
-                if not store.is_stacked:
+                if isinstance(interpolation, METHODS["interpolate"]) and store.is_stacked:
                     store.unstack()
                 _data = interpolation.execute(store.data)
             common_data[name] = _data
