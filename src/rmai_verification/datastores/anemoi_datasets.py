@@ -59,7 +59,7 @@ class AnemoiDatasets(GridDataStore, ObsDataStore):
             None
         """
         LOG.info("Initializing AnemoiDataset datastore")
-        self._files: List[str] = files
+        self._files: Union[str,List[str]] = files
         self._mapping: Union[Dict[str,str], str]  = mapping
         self._stacked: bool = True
 
@@ -121,9 +121,16 @@ class AnemoiDatasets(GridDataStore, ObsDataStore):
         Returns:
             xr.Dataset: The processed dataset with coordinates and selected variables.
         """
-
-        ds = xr.open_zarr(self._files,consolidated=False,chunks="auto")
-        ds_postproc = _postprocess(ds)
+        
+        if isinstance(self._files,list):
+            dss = [xr.open_zarr(file, consolidated=False, chunks="auto") 
+                for file in self._files]
+            dss_postproc = [_postprocess(ds) for ds in dss]
+            ds_postproc = xr.concat(dss_postproc, dim="valid_time")
+        else:
+            ds = xr.open_zarr(self._files,consolidated=False,chunks="auto")
+            ds_postproc = _postprocess(ds)
+            
         if variables:
             ds_selected = ds_postproc.sel(variable=variables)
         else:
