@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Dict, List
+import logging
 
 from .base import BaseDataStore
 
@@ -10,6 +11,9 @@ from .anemoi_datasets import AnemoiDatasets
 from .anemoi_inference import AnemoiInference
 from .rmi_re_pytools import RmiRePytoolsForecast, RmiRePytoolsObservation
 from .base import PointObservations
+
+LOG = logging.getLogger(__name__)
+
 
 DATASTORES = {
     "anemoi-inference": AnemoiInference,
@@ -44,6 +48,7 @@ def load_datastores(datastores : Dict[str, Dict], start_date : str, end_date : s
             end=end_date,
             frequency=frequency,
         )
+        LOG.debug("Loading files %s", ", ".join(files))
         store = DATASTORES[config.pop("type")]
 
         stores[name] = store(files=files,**config)
