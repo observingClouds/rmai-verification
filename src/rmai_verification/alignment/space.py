@@ -11,7 +11,7 @@ LOG = logging.getLogger(__name__)
 POINT_COORDS = ["latitude", "longitude"]
 
 
-def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : str, transformation_kwargs : Dict[str, str] = dict()) -> Dict[str, xr.Dataset]:
+def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : str, kwargs : Dict[str, str] = dict()) -> Dict[str, xr.Dataset]:
     """Align spatial coordinates of multiple datastores to a reference datastore.
 
     This function handles spatial alignment between different datastores, supporting both point-based 
@@ -24,8 +24,8 @@ def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : s
         Dictionary of datastores to align, where keys are datastore names and values are BaseDataStore objects
     reference_datastore : str
         Name of the reference datastore (must be a key in datastores dict)
-    transformation_kwargs : Dict[str, str], optional
-        Additional keyword arguments for transformation methods, by default empty dict
+    kwargs : Dict[str, str], optional
+        Keyword arguments for interpolation and regrid methods, by default empty dict
     
     Returns
     -------
@@ -47,10 +47,12 @@ def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : s
         # The reference datastore is a PointDataStore.
         LOG.info(f"reference datastore {reference_datastore} is an ObsDataStore")
         common_data[reference_datastore] = ref_store.data
-        interpolator = METHODS["delaunay"]
+        interpolation_kwargs = kwargs["interpolation"]
+        interpolator = interpolation_kwargs.pop("type","delaunay")
+        interpolator = METHODS[interpolator]
         interpolation = interpolator(
             ref_store.data,
-            transformation_kwargs
+            interpolation_kwargs
         )
         for name, store in _datastores.items():
             # If the reference datastore is a PointDataStore there are two options:

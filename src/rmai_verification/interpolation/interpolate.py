@@ -8,7 +8,7 @@ import numpy as np
 import xarray as xr
 import dask.array as dda
 
-from scipy.interpolate import griddata, LinearNDInterpolator
+from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import Delaunay
 
 LOG = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ def interpolate_block(block : xr.DataArray, triangulation: Delaunay, target_poin
 
     return xr.DataArray(interpolated, dims=new_dims, coords=new_coords)
 
-def interpolate_dataset(ds: xr.Dataset, target_lons: np.ndarray, target_lats: np.ndarray, method: str = "linear") -> xr.Dataset:
+def interpolate_dataset(ds: xr.Dataset, target_lons: np.ndarray, target_lats: np.ndarray) -> xr.Dataset:
     if 'latitude' not in ds.coords or 'longitude' not in ds.coords:
         raise KeyError("Dataset must have 'latitude' and 'longitude' coordinates.")
     elif len(ds.coords["latitude"].shape) != 1 or len(ds.coords["latitude"].shape) != 1: 
@@ -131,6 +131,11 @@ class DelaunayInterpolator():
         LOG.info("Initializing Delaunay interpolater")
         self.output_ds = output_ds
         self.kwargs = interp_kwargs
+        method = self.kwargs.get("method", "linear")
+        if  method != "linear":
+            LOG.error("Delaunay interpolation only supports linear interpolation")
+            raise KeyError(f"method: {method}")
+
 
     def execute(self, input_ds: xr.Dataset) -> xr.Dataset:
         target_lons = self.output_ds["longitude"].values
@@ -139,7 +144,6 @@ class DelaunayInterpolator():
             input_ds,
             target_lons,
             target_lats,
-            method = self.kwargs.get("method","linear")
         )
         ds_code = ds_interpolated.assign_coords(
             code=("point_index", self.output_ds.code.values)

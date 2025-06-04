@@ -53,8 +53,16 @@ transformations:
       - cerra
     fields: [2t]
 
+interpolation:
+  type: delaunay
+
+
+
 verification:
   reference_datastore: SYNOP    
+  interpolation: 
+    type: delaunay
+
   variables : [2t, 10s]
   clusters:
     temporal:
