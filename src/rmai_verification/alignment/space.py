@@ -10,6 +10,9 @@ LOG = logging.getLogger(__name__)
 
 POINT_COORDS = ["latitude", "longitude"]
 
+# Tolerance in degrees that the coordinates of two grids can differ while still being interpreted as the same grid.
+# 0.0001 degrees ~ 10m at 45 deg latitude
+COORD_TOLERANCE = 0.0001 
 
 def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : str, transformation_kwargs : Dict[str, str] = dict()) -> Dict[str, xr.Dataset]:
     """Align spatial coordinates of multiple datastores to a reference datastore.
@@ -80,18 +83,31 @@ def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : s
         # 1. Same projection: Take subgrid
         # 2. Different projection: Regrid
         LOG.info(f"reference datastore {reference_datastore} is a GridDataStore")
+        if ref_store._mapping:
+            ref_store.unstack()
+        common_data[reference_datastore] = ref_store.data
         for name, store in _datastores.items():
             if store.is_point:
                 LOG.error(f"Cannot transform PointDataStore {name} to a grid.")
                 raise ValueError
             else:
-                #TODO: We don't necessarily need to unstack here. But then the scores are also multiindexed.
-                # And saving multiindexed data is not yet supported by the xarray backend.
-                ref_store.unstack()
-                store.unstack()
-                common_data[reference_datastore] = ref_store.data
-                if (ref_store.latitudes == store.latitudes).any() and (ref_store.longitudes == store.longitudes).any():
-                    common_data[name] = store.data
-                else:               
+                if store._mapping:
+                    store.unstack()
+                # Check if shape of the coordinates is equal 
+                if (ref_store.latitudes.shape == store.latitudes.shape) and \
+                    (ref_store.longitudes.shape == store.longitudes.shape):
+                    #TODO: We don't necessarily need to unstack here. But then the scores are also multiindexed.
+                    # And saving multiindexed data is not yet supported by the xarray backend.
+                    if (ref_store.latitudes == store.latitudes).all() and (ref_store.longitudes == store.longitudes).all():
+                        LOG.info(f"The grid coordinates of datastore {name} are identical to the reference datastore")
+                        common_data[name] = store.data
+                    elif np.isclose(ref_store.latitudes, store.latitudes, atol=COORD_TOLERANCE).all() and \
+                        np.isclose(ref_store.longitudes, store.longitudes, atol=COORD_TOLERANCE).all():
+                        LOG.warning(f"Some lat-lon coordinates of datastore {name} and reference datastore {reference_datastore} differ.\n" + 
+                                    f"But the difference is less then {COORD_TOLERANCE} degrees, considering both grids as equal")
+                    else:               
+                        raise NotImplementedError("Regridding is not yet supported")
+                else:
                     raise NotImplementedError("Regridding is not yet supported")
+
     return common_data
