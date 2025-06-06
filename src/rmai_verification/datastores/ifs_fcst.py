@@ -37,7 +37,7 @@ class IfsForecast(GridDataStore, FcstDataStore):
             **self._mf_kwargs
         )
         
-        data.coords["longitude"] = data.coords["longitude"]-360
+        data.coords["longitude"] = (data.coords["longitude"] + 180.) % 360. -180.
 
         self._data = data.rename_dims(
             time="reference_time",
