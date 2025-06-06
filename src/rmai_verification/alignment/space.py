@@ -83,18 +83,23 @@ def align_spatial(datastores : Dict[str, BaseDataStore], reference_datastore : s
         # 1. Same projection: Take subgrid
         # 2. Different projection: Regrid
         LOG.info(f"reference datastore {reference_datastore} is a GridDataStore")
-        ref_store.unstack()
+        if ref_store._mapping:
+            ref_store.unstack()
         common_data[reference_datastore] = ref_store.data
         for name, store in _datastores.items():
             if store.is_point:
                 LOG.error(f"Cannot transform PointDataStore {name} to a grid.")
                 raise ValueError
             else:
-                if (len(ref_store.latitudes) == len(store.latitudes)) and (len(ref_store.longitudes) == len(store.longitudes)):
+                if store._mapping:
+                    store.unstack()
+                # Check if shape of the coordinates is equal 
+                if (ref_store.latitudes.shape == store.latitudes.shape) and \
+                    (ref_store.longitudes.shape == store.longitudes.shape):
                     #TODO: We don't necessarily need to unstack here. But then the scores are also multiindexed.
                     # And saving multiindexed data is not yet supported by the xarray backend.
-                    store.unstack()
                     if (ref_store.latitudes == store.latitudes).all() and (ref_store.longitudes == store.longitudes).all():
+                        LOG.info(f"The grid coordinates of datastore {name} are identical to the reference datastore")
                         common_data[name] = store.data
                     elif np.isclose(ref_store.latitudes, store.latitudes, atol=COORD_TOLERANCE).all() and \
                         np.isclose(ref_store.longitudes, store.longitudes, atol=COORD_TOLERANCE).all():
