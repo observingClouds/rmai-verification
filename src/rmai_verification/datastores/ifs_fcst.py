@@ -27,6 +27,8 @@ class IfsForecast(GridDataStore, FcstDataStore):
 
         data = xr.open_mfdataset(
             self._files,
+            combine="nested",
+            concat_dim="time",
             chunks={
                 "time" : 1,
                 "step": -1,
