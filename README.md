@@ -33,7 +33,7 @@ rmai-verification local --n_workers 2 --threads_per_worker 1 configs/config.yaml
 ```
 Run using dask on a slurm cluster
 ```
-rmai-verification slurm --queue standard --account my_project --cores 64 --memory 240GB --interface hsn0 --config ./configs/config.yaml
+rmai-verification slurm --queue standard --account my_project --cores 64 --memory 240GB --interface hsn0 ./configs/config.yaml
 ```
 
 The config is structured as follows:
