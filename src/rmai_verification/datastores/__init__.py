@@ -10,6 +10,7 @@ from ..utils.files import get_filenames
 from .anemoi_datasets import AnemoiDatasets
 from .anemoi_inference import AnemoiInference
 from .rmi_re_pytools import RmiRePytoolsForecast, RmiRePytoolsObservation
+from .ifs_fcst import IfsForecast
 from .base import PointObservations
 
 LOG = logging.getLogger(__name__)
@@ -20,7 +21,8 @@ DATASTORES = {
     "anemoi-datasets" : AnemoiDatasets,
     "rmi-re-pytools-fc": RmiRePytoolsForecast,
     "rmi-re-pytools-obs": RmiRePytoolsObservation,
-    "point-observations" : PointObservations
+    "point-observations" : PointObservations,
+    "ifs-forecast": IfsForecast
 }
 def load_datastores(datastores : Dict[str, Dict], start_date : str, end_date : str, frequency : str) -> Dict[str, BaseDataStore]:
     """Load datastores
