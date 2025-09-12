@@ -1,5 +1,6 @@
-from .interpolate import XrInterpolator
+from .interpolate import XrInterpolator, DelaunayInterpolator
 
 METHODS = {
-    "interpolate": XrInterpolator
+    "interpolate": XrInterpolator,
+    "delaunay": DelaunayInterpolator
 }

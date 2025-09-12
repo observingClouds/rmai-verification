@@ -111,10 +111,16 @@ class Verification():
         align_valid_times(
             datastores=self._datastores
         )
+
+        align_spatial_kwargs = dict(
+            interpolation=self._config.get("interpolation",dict()),
+            regrid=self._config.get("regrid",dict())
+        )
         
         self._aligned_data = align_spatial(
             datastores=self._datastores,
-            reference_datastore=self._reference_datastore
+            reference_datastore=self._reference_datastore,
+            kwargs=align_spatial_kwargs
         )
         
     def calculate_clusters(self) -> None:
