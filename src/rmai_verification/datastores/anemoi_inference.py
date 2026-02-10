@@ -188,7 +188,7 @@ def _preprocess(ds: xr.Dataset | xr.DataArray) -> xr.Dataset:
 
     reference_time = ds["time"].data[0]
     
-    ds_pruned = ds.drop_vars(DROP_VARS)
+    ds_pruned = ds.drop_vars(DROP_VARS, errors="ignore")
     ds_reftime = ds_pruned.expand_dims(
         reference_time=[reference_time]
     )
