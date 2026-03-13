@@ -27,12 +27,15 @@ dependencies = [
 
 [project.optional-dependencies]
 cluster = ["dask-jobqueue (>=0.8)"]
+dashboard = [
+    "bokeh (>=3.1.0)"
+]
+
+[dependecy-groups]
 dev = [
     "dask-jobqueue (>=0.8)", 
     "poetry (>=2.0)",
-]
-dashboard = [
-    "bokeh (>=3.1.0)"
+    "pytest>=9.0.2",
 ]
 
 [tool.poetry]
