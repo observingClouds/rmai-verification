@@ -36,19 +36,20 @@ COORDS = dict(
 
 class AnemoiDatasets(GridDataStore, ObsDataStore):
     """Datastore-class to represent zarr-files produced by anemoi-datasets"""
-    def __init__(self,
+    def __init__(
 
-                 files: str, 
-                 variables: Union[List[str], Tuple[str], set] = None, 
-                 mapping: Union[Dict[str,str], str] = None
-                 ) -> None:
+        self,
+        filename_or_obj: Union[str, List[str], xr.Dataset, List[xr.Dataset]],
+        variables: Union[List[str], Tuple[str], set] = None,
+        mapping: Union[Dict[str, str], str] = None,
+    ) -> None:
         """Initialize the AnemoiDataset datastore.
 
-        This constructor sets up an AnemoiDataset instance by loading data files and optionally
-        mapping coordinates and selecting variables.
+        This constructor sets up an AnemoiDataset instance by loading data files or
+        xarray Dataset(s), and optionally mapping coordinates and selecting variables.
 
         Args:
-            files (str): file path to load data from.
+            filename_or_obj (Union[str, List[str], xr.Dataset, List[xr.Dataset]]): File path(s) or xarray dataset(s) to load.
             variables (Union[List[str], Tuple[str], set], optional): Variables to select from the dataset.
                 If None, all variables are loaded. Defaults to None.
             mapping (Union[Dict[str,str], str], optional): Mapping configuration for adding x,y coordinates.
@@ -59,7 +60,7 @@ class AnemoiDatasets(GridDataStore, ObsDataStore):
             None
         """
         LOG.info("Initializing AnemoiDataset datastore")
-        self._files: Union[str,List[str]] = files
+        self._filename_or_obj: Union[str,List[str], xr.Dataset, List[xr.Dataset]] = filename_or_obj
         self._mapping: Union[Dict[str,str], str]  = mapping
         self._stacked: bool = True
 
@@ -122,15 +123,19 @@ class AnemoiDatasets(GridDataStore, ObsDataStore):
             xr.Dataset: The processed dataset with coordinates and selected variables.
         """
         
-        if isinstance(self._files,list):
-            dss = [xr.open_zarr(file, consolidated=False, chunks="auto") 
-                for file in self._files]
+        if isinstance(self._filename_or_obj, list):
+            if len(self._filename_or_obj) > 0 and isinstance(self._filename_or_obj[0], xr.Dataset):
+                dss = self._filename_or_obj
+            else:
+                dss = [xr.open_zarr(file, consolidated=False, chunks="auto") for file in self._filename_or_obj]
             dss_postproc = [_postprocess(ds) for ds in dss]
             ds_postproc = xr.concat(dss_postproc, dim="valid_time")
+        elif isinstance(self._filename_or_obj, xr.Dataset):
+            ds_postproc = _postprocess(self._filename_or_obj)
         else:
-            ds = xr.open_zarr(self._files,consolidated=False,chunks="auto")
+            ds = xr.open_zarr(self._filename_or_obj, consolidated=False, chunks="auto")
             ds_postproc = _postprocess(ds)
-            
+
         if variables:
             ds_selected = ds_postproc.sel(variable=variables)
         else:
