@@ -32,16 +32,13 @@ def interpolate_block(block : xr.DataArray, triangulation: Delaunay, target_poin
 
     new_dims = block.dims[:-1] + ("point_index", )
     new_coords = {dim: block.coords[dim] for dim in block.dims[:-1]}
-    new_coords["point_index"] = np.arange(target_points.shape[0])
-    # new_coords["latitude"] = ("point_index", target_points[:,0])
-    # new_coords["longitude"] = ("point_index", target_points[:,1])
 
     return xr.DataArray(interpolated, dims=new_dims, coords=new_coords)
 
 def interpolate_dataset(ds: xr.Dataset, target_lons: np.ndarray, target_lats: np.ndarray) -> xr.Dataset:
     if 'latitude' not in ds.coords or 'longitude' not in ds.coords:
         raise KeyError("Dataset must have 'latitude' and 'longitude' coordinates.")
-    elif len(ds.coords["latitude"].shape) != 1 or len(ds.coords["latitude"].shape) != 1: 
+    elif len(ds.coords["latitude"].shape) != 1 or len(ds.coords["longitude"].shape) != 1: 
         raise ValueError("Dataset must have 'latitude' and 'longitude' as 1D coordinates.")
   
   
@@ -88,9 +85,7 @@ def interpolate_dataset(ds: xr.Dataset, target_lons: np.ndarray, target_lats: np
         tmp = xr.DataArray(
             tmp,
             dims=leading_dims + ("point_index", ),
-            coords={d: da.coords[d].load() for d in leading_dims} 
-        ).assign_coords(
-            point_index=np.arange(n_target),
+            coords={d: da.coords[d].load() for d in leading_dims}
         )
         #     latitude=("point_index",target_lats),
         #     longitude=("point_index",target_lons)
@@ -103,7 +98,7 @@ def interpolate_dataset(ds: xr.Dataset, target_lons: np.ndarray, target_lats: np
                 target_points,
             ),
             template=tmp
-        )
+        ).assign_coords(point_index=np.arange(n_target))
 
         out_vars[var] = da_interp
   
