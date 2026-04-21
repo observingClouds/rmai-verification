@@ -36,14 +36,13 @@ MF_KWARGS = {
 
 class AnemoiInference(GridDataStore,FcstDataStore):
     def __init__(self, 
-                 files: List[str], 
+                 filename_or_obj: Union[str, List[str], xr.Dataset, List[xr.Dataset]], 
                  variables: Union[List[str],Tuple[str],set] = None,
                  mapping: Union[Dict[str,str],str] = None,
                  mf_kwargs: Dict[str,str] = dict()
                  ):
         LOG.info("Initializing AnemoiInference datastore")
-        # Add the files to the class
-        self._files = files #FIXME should we handle file-globbing here?
+        self._filename_or_obj = filename_or_obj
         self._mapping: Union[Dict[str],str] = mapping
         self._stacked: bool = True
 
@@ -55,9 +54,22 @@ class AnemoiInference(GridDataStore,FcstDataStore):
             if key not in self._mf_kwargs.keys():
                 self._mf_kwargs[key] = value
         
-    
-        # open a single dataset to infer some properties
-        ds = xr.open_dataset(self._files[0],engine=self._mf_kwargs["engine"])
+        # Open a single dataset to infer some properties.
+        if isinstance(self._filename_or_obj, list):
+            if len(self._filename_or_obj) == 0:
+                raise ValueError("filename_or_obj must not be an empty list")
+            if isinstance(self._filename_or_obj[0], xr.Dataset):
+                ds = self._filename_or_obj[0]
+                close_ds = False
+            else:
+                ds = xr.open_dataset(self._filename_or_obj[0], engine=self._mf_kwargs["engine"])
+                close_ds = True
+        elif isinstance(self._filename_or_obj, xr.Dataset):
+            ds = self._filename_or_obj
+            close_ds = False
+        else:
+            ds = xr.open_dataset(self._filename_or_obj, engine=self._mf_kwargs["engine"])
+            close_ds = True
 
         # Get the longitudes and latitude 
         self._longitudes = ds["longitude"].data
@@ -66,7 +78,8 @@ class AnemoiInference(GridDataStore,FcstDataStore):
         # Get the lead times
         self._lead_times = _calc_lead_times(ds)
 
-        ds.close()
+        if close_ds:
+            ds.close()
 
 
         self._data = self._open()
@@ -90,16 +103,34 @@ class AnemoiInference(GridDataStore,FcstDataStore):
             xarray.Dataset: The processed dataset with assigned coordinates and
             attributes.
         """
-        ds = xr.open_mfdataset(
-            self._files,
-            preprocess=_preprocess,
-            chunks={
-                "reference_time" : 1,
-                "time": -1,
-                "values": -1
-            },
-            **self._mf_kwargs,
-        )
+        if isinstance(self._filename_or_obj, list):
+            if len(self._filename_or_obj) > 0 and isinstance(self._filename_or_obj[0], xr.Dataset):
+                datasets = [_preprocess(ds) for ds in self._filename_or_obj]
+                ds = xr.concat(datasets, dim="reference_time")
+            else:
+                ds = xr.open_mfdataset(
+                    self._filename_or_obj,
+                    preprocess=_preprocess,
+                    chunks={
+                        "reference_time" : 1,
+                        "time": -1,
+                        "values": -1
+                    },
+                    **self._mf_kwargs,
+                )
+        elif isinstance(self._filename_or_obj, xr.Dataset):
+            ds = _preprocess(self._filename_or_obj)
+        else:
+            ds = xr.open_mfdataset(
+                [self._filename_or_obj],
+                preprocess=_preprocess,
+                chunks={
+                    "reference_time" : 1,
+                    "time": -1,
+                    "values": -1
+                },
+                **self._mf_kwargs,
+            )
         ds_coords = ds.assign_coords(
             {
                 "lead_time": ("lead_time", self._lead_times),
