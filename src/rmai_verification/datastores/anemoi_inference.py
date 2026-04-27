@@ -172,6 +172,19 @@ class AnemoiInference(GridDataStore,FcstDataStore):
         ds_coords.attrs["is_observation"] = False
         return ds_coords
 
+    def select_valid_times(
+        self,
+        valid_times: Union[List[np.datetime64], np.ndarray, xr.DataArray],
+    ) -> None:
+        """Subset the forecast data to the selected valid times.
+
+        For forecast data, ``valid_time`` is typically a 2D coordinate
+        (``reference_time``, ``lead_time``). This method keeps only entries
+        whose valid times overlap with the provided ``valid_times``.
+        """
+        valid_time_mask = self._data["valid_time"].isin(valid_times)
+        self._data = self._data.where(valid_time_mask, drop=True)
+
     def unstack(self,mapping: Union[str, Dict[str,str]] = None):
         """Unstacks the dataset from a stacked format to a grid format.
 
